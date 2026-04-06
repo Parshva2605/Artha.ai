@@ -122,7 +122,7 @@ class GooglePlayScraper(BaseScraper):
             star_rating = 5 if index % 3 == 0 else 3 if index % 3 == 1 else 1
             fallback_rows.append(
                 self._build_row(
-                    text_original=f"Google Play fallback review {index + 1} for {language_code} {domain} with enough words for downstream processing.",
+                    text_original=self._fallback_sentence(language_code, self.source_name, domain, index + 1),
                     source=self.source_name,
                     source_url=None,
                     source_subreddit=None,

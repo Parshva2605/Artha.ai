@@ -148,7 +148,7 @@ class NewsScraper(BaseScraper):
         for index in range(fallback_limit):
             fallback_rows.append(
                 self._build_row(
-                    text_original=f"News fallback article {index + 1} for {language_code} {domain} with enough words for downstream processing and analysis.",
+                    text_original=self._fallback_sentence(language_code, self.source_name, domain, index + 1),
                     source=self.source_name,
                     source_url=f"https://news.example.com/{language_code}/{domain}/{index + 1}",
                     source_subreddit=None,

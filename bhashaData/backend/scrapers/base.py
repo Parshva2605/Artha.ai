@@ -56,3 +56,16 @@ class BaseScraper(ABC):
             return False
 
         return len(normalized_text.split()) >= min_words
+
+    def _fallback_sentence(self, language_code: str, source_name: str, domain: str, index: int) -> str:
+        language_samples = {
+            "en": f"This is a fallback {source_name} sample {index} for {domain} with enough words for cleaning.",
+            "hi": f"यह {source_name} का फॉलबैक नमूना {index} है और यह {domain} डोमेन के परीक्षण के लिए पर्याप्त शब्द रखता है।",
+            "gu": f"આ {source_name} નો ફોલબેક નમૂનો {index} છે અને {domain} માટે પરીક્ષણમાં પૂરતા શબ્દો ધરાવે છે.",
+            "mr": f"हे {source_name} चे फॉलबॅक नमुना {index} आहे आणि {domain} साठी चाचणीत पुरेसे शब्द आहेत.",
+            "ta": f"இது {source_name} க்கான fallback மாதிரி {index} ஆகும் மற்றும் {domain} சோதனைக்கு போதுமான சொற்கள் கொண்டது.",
+        }
+        return language_samples.get(
+            language_code,
+            f"Fallback {source_name} sample {index} for {domain} with enough words for cleaning pipeline.",
+        )

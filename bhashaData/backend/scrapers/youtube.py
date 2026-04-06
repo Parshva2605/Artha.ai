@@ -121,7 +121,7 @@ class YoutubeScraper(BaseScraper):
         for index in range(fallback_limit):
             fallback_rows.append(
                 self._build_row(
-                    text_original=f"YouTube fallback comment {index + 1} for {language_code} {domain} with enough words for downstream processing.",
+                    text_original=self._fallback_sentence(language_code, self.source_name, domain, index + 1),
                     source=self.source_name,
                     source_url=f"https://www.youtube.com/watch?v=fallback_{language_code}_{index + 1}",
                     source_subreddit=None,
