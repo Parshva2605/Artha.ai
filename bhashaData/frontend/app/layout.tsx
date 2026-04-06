@@ -3,8 +3,8 @@ import "./globals.css";
 import Providers from "./providers";
 
 export const metadata: Metadata = {
-  title: "BhashaData",
-  description: "Indian Language Dataset Generation Platform",
+  title: "Artha AI",
+  description: "Give Meaning to Your Data",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

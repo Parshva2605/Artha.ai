@@ -1,17 +1,90 @@
-import { GenerateDatasetRequest, GenerateDatasetResponse } from "./types";
+import type {
+  ExportFormat,
+  GenerateDatasetRequest,
+  GenerateDatasetResponse,
+  JobStatusResponse,
+  QualityReport,
+} from "./types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export async function generateDataset(payload: GenerateDatasetRequest): Promise<GenerateDatasetResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/generate-dataset`, {
+async function buildError(response: Response): Promise<Error> {
+  try {
+    const payload = (await response.json()) as { detail?: string; message?: string };
+    const message = payload.detail || payload.message || `Request failed with status ${response.status}`;
+    return new Error(message);
+  } catch {
+    return new Error(`Request failed with status ${response.status}`);
+  }
+}
+
+export async function generateDataset(request: GenerateDatasetRequest): Promise<GenerateDatasetResponse> {
+  const response = await fetch(`${API_BASE}/api/generate-dataset`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(request),
   });
 
   if (!response.ok) {
-    throw new Error("Failed to start dataset generation job");
+    throw await buildError(response);
   }
 
-  return response.json() as Promise<GenerateDatasetResponse>;
+  return (await response.json()) as GenerateDatasetResponse;
+}
+
+export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
+  const response = await fetch(`${API_BASE}/api/job-status/${jobId}`);
+  if (!response.ok) {
+    throw await buildError(response);
+  }
+  return (await response.json()) as JobStatusResponse;
+}
+
+export async function getQualityReport(jobId: string): Promise<QualityReport> {
+  const response = await fetch(`${API_BASE}/api/quality-report/${jobId}`);
+  if (!response.ok) {
+    throw await buildError(response);
+  }
+
+  const raw = (await response.json()) as {
+    overall_quality_score: number;
+    per_language_quality: Record<string, number>;
+    label_distribution: Record<string, number>;
+    shortfall_warnings: string[];
+    low_quality_warning: string | null;
+    total_labeled: number;
+    total_needs_review: number;
+    claude_count: number;
+    openai_count: number;
+    ollama_count: number;
+    balance_result?: { is_balanced?: boolean };
+    is_balanced?: boolean;
+  };
+
+  return {
+    overall_quality_score: raw.overall_quality_score,
+    per_language_quality: raw.per_language_quality,
+    label_distribution: raw.label_distribution,
+    is_balanced: raw.is_balanced ?? raw.balance_result?.is_balanced ?? true,
+    shortfall_warnings: raw.shortfall_warnings,
+    low_quality_warning: raw.low_quality_warning,
+    total_labeled: raw.total_labeled,
+    total_needs_review: raw.total_needs_review,
+    claude_count: raw.claude_count,
+    openai_count: raw.openai_count,
+    ollama_count: raw.ollama_count,
+  };
+}
+
+export function getDownloadUrl(jobId: string, format: ExportFormat): string {
+  return `${API_BASE}/api/download/${jobId}/${format}`;
+}
+
+export async function checkHealth(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE}/api/health`);
+    return response.status === 200;
+  } catch {
+    return false;
+  }
 }
