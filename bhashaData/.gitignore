@@ -7,3 +7,4 @@ __pycache__/
 bhashaData.db
 node_modules/
 .next/
+/datasets/
