@@ -7,6 +7,15 @@ from .cleaner import (
 	run_cleaning_pipeline,
 )
 from .labeler import LabelResult, LabelingResult, label_row, label_text, run_labeling_pipeline
+from .quality import (
+	BalanceResult,
+	BenchmarkComparison,
+	QualityReport,
+	calculate_quality_score,
+	check_label_balance,
+	check_shortfall,
+	generate_quality_report,
+)
 
 __all__ = [
 	"run_cleaning_pipeline",
@@ -20,4 +29,11 @@ __all__ = [
 	"label_text",
 	"label_row",
 	"LabelResult",
+	"generate_quality_report",
+	"QualityReport",
+	"BalanceResult",
+	"BenchmarkComparison",
+	"calculate_quality_score",
+	"check_label_balance",
+	"check_shortfall",
 ]
