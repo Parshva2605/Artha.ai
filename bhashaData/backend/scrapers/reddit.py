@@ -41,15 +41,15 @@ class RedditScraper(BaseScraper):
                     subreddit_name_value = str(getattr(subreddit, "display_name", subreddit_name))
 
                     posts = []
-                    posts.extend(list(subreddit.hot(limit=10)))
-                    posts.extend(list(subreddit.new(limit=10)))
-                    posts.extend(list(subreddit.top(limit=10)))
+                    posts.extend(list(subreddit.hot(limit=25)))
+                    posts.extend(list(subreddit.new(limit=25)))
+                    posts.extend(list(subreddit.top(limit=25)))
 
                     for post in posts:
                         if len(collected_rows) >= target_count:
                             break
 
-                        if not self._post_matches_domain(post, domain):
+                        if not self._post_matches_domain(post, domain, language_code):
                             continue
 
                         try:
@@ -102,7 +102,7 @@ class RedditScraper(BaseScraper):
             success=collected_count > 0,
         )
 
-    def _post_matches_domain(self, post: Any, domain: str) -> bool:
+    def _post_matches_domain(self, post: Any, domain: str, language_code: str) -> bool:
         if domain in {"social_media", "mixed"}:
             return True
 
@@ -115,6 +115,9 @@ class RedditScraper(BaseScraper):
             return any(keyword in title or keyword in selftext for keyword in keywords)
 
         if domain == "news":
+            if language_code != "en":
+                # Non-English subreddits rarely use consistent English flair/keywords.
+                return True
             if flair:
                 return "news" in flair or "breaking" in flair
             keywords = ["news", "breaking", "update", "headline"]

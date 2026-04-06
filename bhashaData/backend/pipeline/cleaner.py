@@ -12,6 +12,10 @@ MENTION_PATTERN = re.compile(r"@\w+")
 HASHTAG_PATTERN = re.compile(r"#\w+")
 WHITESPACE_PATTERN = re.compile(r"\s+")
 
+DEVANAGARI_PATTERN = re.compile(r"[\u0900-\u097F]")
+GUJARATI_PATTERN = re.compile(r"[\u0A80-\u0AFF]")
+TAMIL_PATTERN = re.compile(r"[\u0B80-\u0BFF]")
+
 
 @dataclass
 class CleaningResult:
@@ -34,13 +38,47 @@ def detect_language(text: str) -> str | None:
 		return None
 
 
-def is_correct_language(text: str, expected_code: str, script: str) -> bool:
-	detected_code = detect_language(text)
-	if not detected_code:
-		return False
+def _script_char_ratio(text: str, script: str) -> float:
+	if not text:
+		return 0.0
 
+	if script == "devanagari":
+		matches = DEVANAGARI_PATTERN.findall(text)
+	elif script == "gujarati":
+		matches = GUJARATI_PATTERN.findall(text)
+	elif script == "tamil":
+		matches = TAMIL_PATTERN.findall(text)
+	else:
+		matches = []
+
+	letter_count = sum(1 for char in text if char.isalpha())
+	if letter_count == 0:
+		return 0.0
+	return len(matches) / letter_count
+
+
+def is_correct_language(text: str, expected_code: str, script: str) -> bool:
 	expected_code_normalized = (expected_code or "").lower()
 	script_normalized = (script or "").lower()
+
+	# Prefer script-aware checks for Indic scripts to avoid over-rejection from langdetect.
+	if script_normalized in {"devanagari", "gujarati", "tamil"}:
+		ratio = _script_char_ratio(text, script_normalized)
+		if ratio >= 0.25:
+			return True
+
+	detected_code = detect_language(text)
+	if not detected_code:
+		# For Latin/English, accept when text does not look Indic-script heavy.
+		if script_normalized == "latin":
+			indic_ratio = max(
+				_script_char_ratio(text, "devanagari"),
+				_script_char_ratio(text, "gujarati"),
+				_script_char_ratio(text, "tamil"),
+			)
+			return indic_ratio < 0.10
+		return False
+
 	detected_code_normalized = detected_code.lower()
 
 	if script_normalized == "devanagari" and expected_code_normalized in {"hi", "mr"}:
@@ -53,6 +91,13 @@ def is_correct_language(text: str, expected_code: str, script: str) -> bool:
 		return detected_code_normalized == "gu"
 
 	if script_normalized == "latin":
+		indic_ratio = max(
+			_script_char_ratio(text, "devanagari"),
+			_script_char_ratio(text, "gujarati"),
+			_script_char_ratio(text, "tamil"),
+		)
+		if indic_ratio >= 0.15:
+			return False
 		return detected_code_normalized == "en"
 
 	return detected_code_normalized == expected_code_normalized

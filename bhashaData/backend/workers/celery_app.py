@@ -17,6 +17,7 @@ celery_app.conf.update(
     task_time_limit=3600,
     task_soft_time_limit=3300,
     worker_max_tasks_per_child=10,
+    task_default_queue="dataset_generation",
     task_routes={"generate_dataset": {"queue": "dataset_generation"}},
 )
 

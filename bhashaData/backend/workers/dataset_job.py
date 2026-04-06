@@ -145,6 +145,14 @@ def _run_parallel_with_progress(
             done_count += 1
             progress_percent = int(progress_offset + (done_count / max(1, len(language_codes))) * progress_span)
             per_language_status[language_code]["step"] = step_name_prefix
+
+            if step_name_prefix == "scraped":
+                per_language_status[language_code]["rows_collected"] = len(getattr(result, "rows", []))
+            elif step_name_prefix == "cleaned":
+                per_language_status[language_code]["rows_clean"] = len(getattr(result, "clean_rows", []))
+            elif step_name_prefix == "labeled":
+                per_language_status[language_code]["rows_labeled"] = len(getattr(result, "labeled_rows", []))
+
             report_progress(
                 job_id=job_id,
                 status=stage_status,

@@ -50,7 +50,8 @@ class NewsScraper(BaseScraper):
                                 break
 
                             try:
-                                time.sleep(2)
+                                # Keep a light delay to avoid hammering sites, but not enough to stall jobs.
+                                time.sleep(0.25)
                                 article_response = requests.get(article_url, headers=headers, timeout=10)
                                 article_response.raise_for_status()
                                 article_soup = BeautifulSoup(article_response.text, "html.parser")
@@ -107,6 +108,7 @@ class NewsScraper(BaseScraper):
 
     def _extract_article_links(self, soup: Any, base_url: str) -> list[str]:
         links: list[str] = []
+        base_netloc = base_url.split("//", 1)[-1].split("/", 1)[0].lower()
         for anchor in soup.find_all("a", href=True):
             href = str(anchor.get("href", "")).strip()
             if not href:
@@ -115,14 +117,27 @@ class NewsScraper(BaseScraper):
                 continue
 
             absolute_url = urljoin(base_url, href)
+            absolute_netloc = absolute_url.split("//", 1)[-1].split("/", 1)[0].lower()
+            if absolute_netloc and base_netloc and absolute_netloc != base_netloc:
+                continue
             if absolute_url not in links and self._looks_like_article_url(absolute_url):
                 links.append(absolute_url)
 
-        return links[:5]
+        return links[:25]
 
     def _looks_like_article_url(self, url: str) -> bool:
         lowered_url = url.lower()
-        return any(token in lowered_url for token in ["news", "article", "story", "world", "india", "sports"])
+        if any(token in lowered_url for token in ["news", "article", "story", "world", "india", "sports"]):
+            return True
+
+        # Many Indic news URLs do not include English keywords; allow content-like deep paths.
+        path = lowered_url.split("//", 1)[-1].split("/", 1)
+        if len(path) < 2:
+            return False
+        slug = path[1]
+        if slug.count("/") >= 2 and len(slug) >= 20:
+            return True
+        return False
 
     def _extract_article_text(self, soup: Any) -> str:
         article_parts: list[str] = []
