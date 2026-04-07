@@ -27,6 +27,8 @@ def run_scrapers_for_language(
     target_count: int,
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> OrchestratorResult:
+    effective_target = target_count * 5 if language_config.get("code") == "gu" else target_count * 3
+
     scrapers = [
         RedditScraper(),
         YoutubeScraper(),
@@ -44,7 +46,7 @@ def run_scrapers_for_language(
 
     with ThreadPoolExecutor(max_workers=4) as executor:
         future_map = {
-            executor.submit(scraper.scrape, language_config, domain, target_count): scraper
+            executor.submit(scraper.scrape, language_config, domain, effective_target): scraper
             for scraper in scrapers
         }
 

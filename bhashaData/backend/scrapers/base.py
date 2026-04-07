@@ -57,6 +57,12 @@ class BaseScraper(ABC):
 
         return len(normalized_text.split()) >= min_words
 
+    def _fallback_limit(self, language_code: str, target_count: int) -> int:
+        requested = max(1, int(target_count))
+        if language_code == "gu":
+            return max(80, min(requested, 200))
+        return max(20, min(requested, 120))
+
     def _fallback_sentence(self, language_code: str, source_name: str, domain: str, index: int) -> str:
         language_samples = {
             "en": f"This is a fallback {source_name} sample {index} for {domain} with enough words for cleaning.",

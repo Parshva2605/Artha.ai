@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from backend.config.languages import get_config_by_code
+
 
 @dataclass
 class BalanceResult:
@@ -213,6 +215,26 @@ def generate_quality_report(
 		for language_code in language_codes
 	}
 	shortfall_warnings = check_shortfall(delivered_per_language, requested_per_language)
+
+	for language_code, requested in requested_per_language.items():
+		delivered = int(delivered_per_language.get(language_code, 0))
+		requested_value = int(requested)
+		if requested_value <= 0:
+			continue
+
+		minimum_acceptable = int(requested_value * 0.80)
+		if delivered < minimum_acceptable:
+			pct = round((delivered / requested_value) * 100, 1)
+			try:
+				language_name = str(get_config_by_code(str(language_code))["name"])
+			except Exception:  # noqa: BLE001
+				language_name = str(language_code)
+			shortfall_warnings.append(
+				f"{language_name} delivered only {delivered} rows ({pct}% of {requested_value} requested). "
+				f"Minimum acceptable is {minimum_acceptable}. Consider increasing scrape target_count "
+				f"for {language_name} sources."
+			)
+
 	low_quality_warning = check_low_quality(overall_quality_score)
 	return QualityReport(
 		job_id=job_id,

@@ -116,7 +116,7 @@ class YoutubeScraper(BaseScraper):
 
     def _build_fallback_rows(self, language_code: str, domain: str, min_words: int, target_count: int) -> list[dict[str, Any]]:
         fallback_rows: list[dict[str, Any]] = []
-        fallback_limit = max(1, min(3, target_count))
+        fallback_limit = self._fallback_limit(language_code, target_count)
 
         for index in range(fallback_limit):
             fallback_rows.append(
