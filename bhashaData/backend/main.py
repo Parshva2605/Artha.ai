@@ -43,6 +43,8 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event() -> None:
 	try:
+		port = os.getenv("PORT", "8000")
+		logger.info(f"Starting on PORT: {port}")
 		await asyncio.wait_for(
 			asyncio.get_event_loop().run_in_executor(
 				None,
