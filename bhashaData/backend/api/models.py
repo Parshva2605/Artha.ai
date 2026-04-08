@@ -99,6 +99,47 @@ class BalanceResultResponse(BaseModel):
     warning_message: str | None
 
 
+# Authentication models
+class RegisterRequest(BaseModel):
+    email: str
+    password: str = Field(min_length=8)
+    full_name: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, email: str) -> str:
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+            raise ValueError("Invalid email format")
+        return email
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    user_id: str
+    email: str
+    full_name: str | None
+    access_token: str
+
+
+class UserResponse(BaseModel):
+    user_id: str
+    email: str
+    full_name: str | None
+    is_active: bool
+
+
+class JobResponse(BaseModel):
+    job_id: str
+    status: str
+    created_at: str
+    updated_at: str
+
+
+
 class BenchmarkComparisonResponse(BaseModel):
     english_score: float | None
     other_scores: dict[str, float]

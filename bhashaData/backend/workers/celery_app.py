@@ -8,6 +8,18 @@ celery_app = Celery(
     backend=settings.redis_url,
 )
 
+# Configure SSL for Upstash (rediss:// protocol)
+broker_use_ssl = {}
+redis_backend_use_ssl = {}
+
+if settings.redis_url.startswith("rediss://"):
+    broker_use_ssl = {
+        "ssl_cert_reqs": None,
+    }
+    redis_backend_use_ssl = {
+        "ssl_cert_reqs": None,
+    }
+
 celery_app.conf.update(
     task_track_started=True,
     task_serializer="json",
@@ -19,6 +31,8 @@ celery_app.conf.update(
     worker_max_tasks_per_child=10,
     task_default_queue="dataset_generation",
     task_routes={"generate_dataset": {"queue": "dataset_generation"}},
+    broker_use_ssl=broker_use_ssl,
+    redis_backend_use_ssl=redis_backend_use_ssl,
 )
 
 celery_app.autodiscover_tasks(["backend.workers"])

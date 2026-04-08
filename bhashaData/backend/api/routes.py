@@ -5,13 +5,37 @@ import shutil
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import text
 
-from backend.api.models import GenerateDatasetRequest, GenerateDatasetResponse, HealthResponse, JobStatusResponse
+from backend.api.models import (
+    GenerateDatasetRequest,
+    GenerateDatasetResponse,
+    HealthResponse,
+    JobStatusResponse,
+    RegisterRequest,
+    LoginRequest,
+    AuthResponse,
+    UserResponse,
+    JobResponse,
+)
+from backend.api.auth import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    get_current_user,
+    get_optional_user,
+)
 from backend.database.db import get_db
-from backend.database.models import create_job, get_job
+from backend.database.models import (
+    create_job,
+    get_job,
+    create_user,
+    get_user_by_email,
+    get_user_by_id,
+    get_jobs_by_user,
+)
 from backend.workers.dataset_job import generate_dataset_task
 from backend.workers.status import get_job_status, _get_redis_client
 
@@ -91,17 +115,114 @@ def _redis_status_to_response(status_dict: dict) -> JobStatusResponse:
     )
 
 
+# ==================== Authentication Endpoints ====================
+
+
+@router.post("/auth/register", response_model=AuthResponse)
+def register(request: RegisterRequest, db=Depends(get_db)) -> AuthResponse:
+    """Register a new user."""
+    # Check if user already exists
+    existing_user = get_user_by_email(db, request.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
+    
+    # Create user
+    hashed_password = hash_password(request.password)
+    user = create_user(db, request.email, hashed_password, request.full_name)
+    
+    # Create access token
+    access_token = create_access_token(data={"sub": user.email})
+    
+    return AuthResponse(
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        access_token=access_token,
+    )
+
+
+@router.post("/auth/login", response_model=AuthResponse)
+def login(request: LoginRequest, db=Depends(get_db)) -> AuthResponse:
+    """Login a user."""
+    # Get user by email
+    user = get_user_by_email(db, request.email)
+    if not user or not verify_password(request.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is disabled",
+        )
+    
+    # Create access token
+    access_token = create_access_token(data={"sub": user.email})
+    
+    return AuthResponse(
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        access_token=access_token,
+    )
+
+
+@router.get("/auth/me", response_model=UserResponse)
+async def get_me(user = Depends(get_current_user)) -> UserResponse:
+    """Get current user profile."""
+    return UserResponse(
+        user_id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        is_active=user.is_active,
+    )
+
+
+@router.post("/auth/logout")
+async def logout():
+    """Logout endpoint (token deletion handled by frontend)."""
+    return {"message": "Logged out successfully"}
+
+
+# ==================== Dataset Endpoints ====================
+
+
 @router.post("/generate-dataset", response_model=GenerateDatasetResponse)
-def generate_dataset(request: GenerateDatasetRequest, db=Depends(get_db)) -> GenerateDatasetResponse:
+async def generate_dataset(
+    request: GenerateDatasetRequest,
+    db=Depends(get_db),
+    current_user=Depends(get_optional_user),
+) -> GenerateDatasetResponse:
+    """Generate a new dataset. Authentication is optional."""
     job_id = str(uuid4())
     estimated_minutes = max(2, int((request.quantity_per_language * len(request.languages)) / 100))
-    create_job(db, job_id, request.model_dump(), estimated_minutes, request.email)
+    create_job(db, job_id, request.model_dump(), estimated_minutes, request.email, user_id=current_user.id if current_user else None)
     generate_dataset_task.delay(job_id, request.model_dump())
     return GenerateDatasetResponse(
         job_id=job_id,
         estimated_minutes=estimated_minutes,
         message="Dataset generation queued successfully",
     )
+
+
+@router.get("/my-jobs")
+async def get_my_jobs(current_user=Depends(get_current_user), db=Depends(get_db)):
+    """Get all jobs for the current user."""
+    jobs = get_jobs_by_user(db, current_user.id, limit=20)
+    return [
+        JobResponse(
+            job_id=job.id,
+            status=job.status,
+            created_at=job.created_at.isoformat(),
+            updated_at=job.updated_at.isoformat(),
+        )
+        for job in jobs
+    ]
 
 
 @router.get("/job-status/{job_id}", response_model=JobStatusResponse)
