@@ -9,14 +9,25 @@ import { getAuthHeaders } from "./auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-async function buildError(response: Response): Promise<Error> {
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+async function buildError(response: Response): Promise<ApiError> {
+  let message = `Request failed with status ${response.status}`;
   try {
     const payload = (await response.json()) as { detail?: string; message?: string };
-    const message = payload.detail || payload.message || `Request failed with status ${response.status}`;
-    return new Error(message);
+    message = payload.detail || payload.message || message;
   } catch {
-    return new Error(`Request failed with status ${response.status}`);
   }
+
+  return new ApiError(response.status, message);
 }
 
 // ==================== Authentication ====================

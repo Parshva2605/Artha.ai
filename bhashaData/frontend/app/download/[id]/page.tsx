@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { getQualityReport } from "../../../lib/api";
+import { ApiError, getQualityReport } from "../../../lib/api";
 import type { ExportFormat, QualityReport as QualityReportType } from "../../../lib/types";
 import { Button } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
@@ -25,6 +25,8 @@ export default function DownloadPage() {
     queryKey: ["quality-report", jobId],
     queryFn: () => getQualityReport(jobId),
     enabled: Boolean(jobId),
+    retry: (failureCount, error) => error instanceof ApiError && error.status === 404 && failureCount < 10,
+    retryDelay: 2000,
   });
 
   if (reportQuery.isLoading) {
@@ -32,11 +34,19 @@ export default function DownloadPage() {
   }
 
   if (reportQuery.isError || !reportQuery.data) {
+    const isNotReady = reportQuery.error instanceof ApiError && reportQuery.error.status === 404;
+
     return (
       <main className="mx-auto max-w-6xl px-4 py-12">
         <Card className="border-red-200 p-6">
           <p className="text-lg font-semibold text-red-700">Unable to load quality report</p>
-          <p className="mt-2 text-sm text-red-600">{reportQuery.error instanceof Error ? reportQuery.error.message : "Unknown error"}</p>
+          <p className="mt-2 text-sm text-red-600">
+            {isNotReady
+              ? "The report is not ready yet. Wait a few seconds and refresh this page."
+              : reportQuery.error instanceof Error
+                ? reportQuery.error.message
+                : "Unknown error"}
+          </p>
           <Button asChild className="mt-4 bg-[#E8690A] text-white hover:bg-[#d45e07]">
             <Link href="/generate">Generate New Dataset</Link>
           </Button>
