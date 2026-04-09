@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import shutil
+import logging
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
 
 from backend.api.models import (
@@ -40,6 +41,7 @@ from backend.workers.status import get_job_status
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 SUPPORTED_DOWNLOAD_FORMATS = {
     "csv": "csv",
@@ -194,6 +196,7 @@ async def logout():
 @router.post("/generate-dataset", response_model=GenerateDatasetResponse)
 async def generate_dataset(
     request: GenerateDatasetRequest,
+    background_tasks: BackgroundTasks,
     db=Depends(get_db),
     current_user=Depends(get_optional_user),
 ) -> GenerateDatasetResponse:
@@ -201,7 +204,15 @@ async def generate_dataset(
     job_id = str(uuid4())
     estimated_minutes = max(2, int((request.quantity_per_language * len(request.languages)) / 100))
     create_job(db, job_id, request.model_dump(), estimated_minutes, request.email, user_id=current_user.id if current_user else None)
-    generate_dataset_task.delay(job_id, request.model_dump())
+
+    # Prefer Celery workers. If broker config is invalid in production, fall back
+    # to in-process background execution to avoid request-time failures.
+    try:
+        generate_dataset_task.delay(job_id, request.model_dump())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Celery queue unavailable for job %s: %s", job_id, exc)
+        background_tasks.add_task(generate_dataset_task.run, job_id, request.model_dump())
+
     return GenerateDatasetResponse(
         job_id=job_id,
         estimated_minutes=estimated_minutes,
