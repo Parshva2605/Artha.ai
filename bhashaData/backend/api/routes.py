@@ -80,6 +80,21 @@ def _build_per_language_status(request_payload: dict[str, object]) -> dict[str, 
     }
 
 
+def _fallback_progress_percent(status: str) -> int:
+    stage_progress = {
+        "queued": 0,
+        "scraping": 15,
+        "cleaning": 35,
+        "labeling": 60,
+        "quality_check": 80,
+        "exporting": 92,
+        "complete": 100,
+        "failed": 100,
+        "cancelled": 100,
+    }
+    return stage_progress.get(status, 0)
+
+
 def _job_to_status_response(job) -> JobStatusResponse:
     request_payload = json.loads(job.request_payload or "{}")
     status = job.status if job.status in SUPPORTED_STATUSES else "queued"
@@ -95,12 +110,19 @@ def _job_to_status_response(job) -> JobStatusResponse:
         "cancelled": "Cancelled",
     }
     eta_seconds = None if status in {"complete", "failed", "cancelled"} else int(job.estimated_minutes * 60)
+    per_language_status = _build_per_language_status(request_payload)
+
+    if status != "queued":
+        stage_for_languages = "failed" if status in {"failed", "cancelled"} else status
+        for language_status in per_language_status.values():
+            language_status["step"] = stage_for_languages
+
     return JobStatusResponse(
         job_id=job.id,
         status=status,
-        progress_percent=100 if status in {"complete", "cancelled"} else 0,
+        progress_percent=_fallback_progress_percent(status),
         current_step=current_step_map.get(status, "Queued"),
-        per_language_status=_build_per_language_status(request_payload),
+        per_language_status=per_language_status,
         eta_seconds=eta_seconds,
         error_message=job.error_message if status in {"failed", "cancelled"} else None,
         created_at=job.created_at.isoformat(),
