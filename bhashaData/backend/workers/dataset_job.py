@@ -12,7 +12,7 @@ from unittest.mock import Mock
 from backend.config.languages import get_config_by_code
 from backend.config.settings import settings
 from backend.database.db import SessionLocal
-from backend.database.models import update_job_status
+from backend.database.models import get_job, update_job_status
 from backend.pipeline.cleaner import Deduplicator, run_cleaning_pipeline
 from backend.pipeline.exporter import run_export_pipeline
 from backend.pipeline.labeler import run_labeling_pipeline
@@ -25,6 +25,16 @@ from backend.workers.status import get_job_status, set_job_status, update_job_pr
 logger = logging.getLogger(__name__)
 
 _JOB_START_TIMES: dict[str, float] = {}
+
+
+class JobCancelledError(RuntimeError):
+    pass
+
+
+def _ensure_not_cancelled(db, job_id: str) -> None:
+    job = get_job(db, job_id)
+    if job is None or job.status == "cancelled":
+        raise JobCancelledError("Job cancelled")
 
 
 @dataclass
@@ -224,6 +234,7 @@ def generate_dataset_task(job_id: str, request: dict) -> dict[str, Any]:
 
     try:
         logger.info("Starting dataset generation job %s with request=%s", job_id, request_payload)
+        _ensure_not_cancelled(db, job_id)
         update_job_status(db, job_id, "scraping")
         report_progress(job_id, "scraping", 0, "Initializing job", per_language_status)
 
@@ -252,6 +263,7 @@ def generate_dataset_task(job_id: str, request: dict) -> dict[str, Any]:
         if total_scraped_rows == 0:
             raise RuntimeError("No data collected")
 
+        _ensure_not_cancelled(db, job_id)
         update_job_status(db, job_id, "cleaning")
         report_progress(job_id, "cleaning", 30, "Starting cleaning", per_language_status)
 
@@ -277,6 +289,7 @@ def generate_dataset_task(job_id: str, request: dict) -> dict[str, Any]:
             per_language_status=per_language_status,
         )
 
+        _ensure_not_cancelled(db, job_id)
         update_job_status(db, job_id, "labeling")
         report_progress(job_id, "labeling", 50, "Starting labeling", per_language_status)
 
@@ -300,6 +313,7 @@ def generate_dataset_task(job_id: str, request: dict) -> dict[str, Any]:
             per_language_status=per_language_status,
         )
 
+        _ensure_not_cancelled(db, job_id)
         update_job_status(db, job_id, "quality_check")
         report_progress(job_id, "quality_check", 75, "Quality check", per_language_status)
 
@@ -328,6 +342,7 @@ def generate_dataset_task(job_id: str, request: dict) -> dict[str, Any]:
 
         report_progress(job_id, "quality_check", 85, "Quality check complete", per_language_status)
 
+        _ensure_not_cancelled(db, job_id)
         update_job_status(db, job_id, "exporting")
         report_progress(job_id, "exporting", 85, "Starting export", per_language_status)
 
@@ -344,6 +359,7 @@ def generate_dataset_task(job_id: str, request: dict) -> dict[str, Any]:
 
         report_progress(job_id, "exporting", 95, "Export complete", per_language_status)
 
+        _ensure_not_cancelled(db, job_id)
         update_job_status(
             db,
             job_id,
@@ -361,6 +377,22 @@ def generate_dataset_task(job_id: str, request: dict) -> dict[str, Any]:
             export_result.formats_succeeded,
         )
         return {"job_id": job_id, "status": "complete"}
+    except JobCancelledError:
+        logger.info("Job %s cancelled by user", job_id)
+        set_job_status(
+            job_id,
+            {
+                "job_id": job_id,
+                "status": "cancelled",
+                "progress_percent": 100,
+                "current_step": "Cancelled",
+                "per_language_status": per_language_status,
+                "eta_seconds": None,
+                "error_message": "Cancelled by user",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        return {"job_id": job_id, "status": "cancelled"}
     except Exception as exc:  # noqa: BLE001
         error_message = str(exc)
         logger.error("Job %s failed: %s", job_id, traceback.format_exc())

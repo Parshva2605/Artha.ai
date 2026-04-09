@@ -31,13 +31,16 @@ from backend.database.db import get_db
 from backend.database.models import (
     create_job,
     get_job,
+    delete_job,
+    cancel_job,
     create_user,
     get_user_by_email,
     get_user_by_id,
     get_jobs_by_user,
 )
+from backend.workers.celery_app import celery_app
 from backend.workers.dataset_job import generate_dataset_task
-from backend.workers.status import get_job_status
+from backend.workers.status import get_job_status, delete_job_status
 
 
 router = APIRouter()
@@ -59,7 +62,10 @@ SUPPORTED_STATUSES = {
     "exporting",
     "complete",
     "failed",
+    "cancelled",
 }
+
+RUNNING_STATUSES = {"queued", "scraping", "cleaning", "labeling", "quality_check", "exporting"}
 
 
 def _build_per_language_status(request_payload: dict[str, object]) -> dict[str, dict[str, object]]:
@@ -86,16 +92,17 @@ def _job_to_status_response(job) -> JobStatusResponse:
         "exporting": "Exporting",
         "complete": "Complete",
         "failed": "Failed",
+        "cancelled": "Cancelled",
     }
-    eta_seconds = None if status in {"complete", "failed"} else int(job.estimated_minutes * 60)
+    eta_seconds = None if status in {"complete", "failed", "cancelled"} else int(job.estimated_minutes * 60)
     return JobStatusResponse(
         job_id=job.id,
         status=status,
-        progress_percent=100 if status == "complete" else 0,
+        progress_percent=100 if status in {"complete", "cancelled"} else 0,
         current_step=current_step_map.get(status, "Queued"),
         per_language_status=_build_per_language_status(request_payload),
         eta_seconds=eta_seconds,
-        error_message=job.error_message if status == "failed" else None,
+        error_message=job.error_message if status in {"failed", "cancelled"} else None,
         created_at=job.created_at.isoformat(),
         updated_at=job.updated_at.isoformat(),
     )
@@ -208,7 +215,7 @@ async def generate_dataset(
     # Prefer Celery workers. If broker config is invalid in production, fall back
     # to in-process background execution to avoid request-time failures.
     try:
-        generate_dataset_task.delay(job_id, request.model_dump())
+        generate_dataset_task.apply_async(args=[job_id, request.model_dump()], task_id=job_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Celery queue unavailable for job %s: %s", job_id, exc)
         background_tasks.add_task(generate_dataset_task.run, job_id, request.model_dump())
@@ -233,6 +240,36 @@ async def get_my_jobs(current_user=Depends(get_current_user), db=Depends(get_db)
         )
         for job in jobs
     ]
+
+
+@router.delete("/jobs/{job_id}")
+async def delete_or_cancel_job(job_id: str, current_user=Depends(get_current_user), db=Depends(get_db)):
+    """Delete old jobs and cancel active jobs."""
+    job = get_job(db, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this job")
+
+    # Cancel running jobs first; they are hidden from listing once cancelled.
+    if job.status in RUNNING_STATUSES:
+        cancel_job(db, job_id, error_message="Cancelled by user")
+        delete_job_status(job_id)
+        try:
+            celery_app.control.revoke(job_id, terminate=True)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to revoke celery task for %s: %s", job_id, exc)
+        return {"message": "Job cancellation requested", "status": "cancelled"}
+
+    if job.output_dir:
+        output_dir = Path(job.output_dir)
+        if output_dir.exists() and output_dir.is_dir():
+            shutil.rmtree(output_dir, ignore_errors=True)
+
+    delete_job_status(job_id)
+    delete_job(db, job_id)
+    return {"message": "Job deleted", "status": "deleted"}
 
 
 @router.get("/job-status/{job_id}", response_model=JobStatusResponse)

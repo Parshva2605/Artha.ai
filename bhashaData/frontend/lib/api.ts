@@ -146,6 +146,17 @@ export async function getMyJobs(): Promise<JobResponse[]> {
   return (await response.json()) as JobResponse[];
 }
 
+export async function deleteJob(jobId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/jobs/${jobId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw await buildError(response);
+  }
+}
+
 export async function getQualityReport(jobId: string): Promise<QualityReport> {
   const response = await fetch(`${API_BASE}/api/quality-report/${jobId}`);
   if (!response.ok) {

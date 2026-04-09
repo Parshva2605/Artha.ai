@@ -47,6 +47,16 @@ def get_job_status(job_id) -> dict | None:
 		return None
 
 
+def delete_job_status(job_id) -> None:
+	client = _get_redis_client()
+	if client is None:
+		return
+	try:
+		client.delete(f"job:{job_id}:status")
+	except Exception:  # noqa: BLE001
+		return
+
+
 def update_job_progress(
 	job_id,
 	status,

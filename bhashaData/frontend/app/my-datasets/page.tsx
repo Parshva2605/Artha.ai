@@ -1,15 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getMyJobs, getDownloadUrl, JobResponse } from "@/lib/api";
+import { deleteJob, getMyJobs, getDownloadUrl, JobResponse } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+const RUNNING_STATUSES = new Set([
+  "queued",
+  "scraping",
+  "cleaning",
+  "labeling",
+  "quality_check",
+  "exporting",
+]);
 
 export default function MyDatasetsPage() {
   const router = useRouter();
   const [jobs, setJobs] = useState<JobResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadJobs() {
@@ -63,6 +73,30 @@ export default function MyDatasetsPage() {
       .split("_")
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
+  }
+
+  async function handleDelete(job: JobResponse): Promise<void> {
+    const isRunning = RUNNING_STATUSES.has(job.status);
+    const confirmed = window.confirm(
+      isRunning
+        ? "This job is still running. Cancel it now?"
+        : "Delete this dataset job permanently?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setError("");
+    setDeletingJobId(job.job_id);
+    try {
+      await deleteJob(job.job_id);
+      setJobs((previous) => previous.filter((item) => item.job_id !== job.job_id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete job");
+    } finally {
+      setDeletingJobId(null);
+    }
   }
 
   if (loading) {
@@ -164,6 +198,18 @@ export default function MyDatasetsPage() {
                             Download
                           </a>
                         )}
+                        <button
+                          type="button"
+                          className="text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
+                          disabled={deletingJobId === job.job_id}
+                          onClick={() => void handleDelete(job)}
+                        >
+                          {deletingJobId === job.job_id
+                            ? "Working..."
+                            : RUNNING_STATUSES.has(job.status)
+                              ? "Cancel"
+                              : "Delete"}
+                        </button>
                       </div>
                     </td>
                   </tr>

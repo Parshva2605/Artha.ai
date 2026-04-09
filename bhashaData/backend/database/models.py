@@ -128,11 +128,37 @@ def get_jobs_by_user(db, user_id: str, limit: int = 20) -> list[Job]:
     return (
         db.execute(
             select(Job)
-            .where(Job.user_id == user_id)
+            .where(Job.user_id == user_id, Job.status != "cancelled")
             .order_by(Job.created_at.desc())
             .limit(limit)
         )
         .scalars()
         .all()
     )
+
+
+def cancel_job(db, job_id: str, error_message: str | None = None) -> Job | None:
+    """Mark a job as cancelled."""
+    job = get_job(db, job_id)
+    if job is None:
+        return None
+
+    job.status = "cancelled"
+    job.error_message = error_message
+    job.updated_at = datetime.now(timezone.utc)
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+def delete_job(db, job_id: str) -> bool:
+    """Hard delete a job row."""
+    job = get_job(db, job_id)
+    if job is None:
+        return False
+
+    db.delete(job)
+    db.commit()
+    return True
 
