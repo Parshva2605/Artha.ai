@@ -17,6 +17,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Security scheme for FastAPI
 security = HTTPBearer()
+optional_security = HTTPBearer(auto_error=False)
 
 # Constants
 SECRET_KEY = settings.jwt_secret_key
@@ -100,7 +101,7 @@ async def get_current_user(
 
 
 async def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
     db: Session = Depends(get_db)
 ) -> User | None:
     """Get the current user if authenticated, otherwise return None."""
