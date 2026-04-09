@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import shutil
 import logging
+import threading
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse, JSONResponse
 
 from backend.api.models import (
@@ -66,6 +67,13 @@ SUPPORTED_STATUSES = {
 }
 
 RUNNING_STATUSES = {"queued", "scraping", "cleaning", "labeling", "quality_check", "exporting"}
+
+
+def _run_dataset_job_fallback(job_id: str, request_payload: dict) -> None:
+    try:
+        generate_dataset_task.run(job_id, request_payload)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Fallback dataset job failed for %s: %s", job_id, exc)
 
 
 def _build_per_language_status(request_payload: dict[str, object]) -> dict[str, dict[str, object]]:
@@ -225,7 +233,6 @@ async def logout():
 @router.post("/generate-dataset", response_model=GenerateDatasetResponse)
 async def generate_dataset(
     request: GenerateDatasetRequest,
-    background_tasks: BackgroundTasks,
     db=Depends(get_db),
     current_user=Depends(get_optional_user),
 ) -> GenerateDatasetResponse:
@@ -235,12 +242,17 @@ async def generate_dataset(
     create_job(db, job_id, request.model_dump(), estimated_minutes, request.email, user_id=current_user.id if current_user else None)
 
     # Prefer Celery workers. If broker config is invalid in production, fall back
-    # to in-process background execution to avoid request-time failures.
+    # to an in-process thread so long-running work is detached from request lifecycle.
     try:
         generate_dataset_task.apply_async(args=[job_id, request.model_dump()], task_id=job_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Celery queue unavailable for job %s: %s", job_id, exc)
-        background_tasks.add_task(generate_dataset_task.run, job_id, request.model_dump())
+        fallback_thread = threading.Thread(
+            target=_run_dataset_job_fallback,
+            args=(job_id, request.model_dump()),
+            daemon=True,
+        )
+        fallback_thread.start()
 
     return GenerateDatasetResponse(
         job_id=job_id,
