@@ -81,6 +81,7 @@ OLLAMA_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 _OLLAMA_DISABLED = False
 _OLLAMA_DISABLE_REASON = ""
 _OLLAMA_DISABLE_LOCK = threading.Lock()
+_OLLAMA_REQUEST_LOCK = threading.Lock()
 
 
 def _disable_ollama(reason: str) -> None:
@@ -274,53 +275,54 @@ def label_with_openai(text: str, label_type: str, language_name: str) -> LabelRe
 
 def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelResult | None:
 	try:
-		if _is_ollama_disabled():
-			return None
+		with _OLLAMA_REQUEST_LOCK:
+			if _is_ollama_disabled():
+				return None
 
-		base_url = (
-			os.getenv("OLLAMA_ENDPOINT", "").strip()
-			or os.getenv("OLLAMA_BASE_URL", "").strip()
-		).rstrip("/")
-		model = os.getenv("OLLAMA_MODEL", "").strip()
-		api_key = os.getenv("OLLAMA_API_KEY", "").strip()
-		timeout = int(os.getenv("OLLAMA_TIMEOUT", "60"))
-		auth_header_name = os.getenv("OLLAMA_AUTH_HEADER", "Authorization").strip() or "Authorization"
+			base_url = (
+				os.getenv("OLLAMA_ENDPOINT", "").strip()
+				or os.getenv("OLLAMA_BASE_URL", "").strip()
+			).rstrip("/")
+			model = os.getenv("OLLAMA_MODEL", "").strip()
+			api_key = os.getenv("OLLAMA_API_KEY", "").strip()
+			timeout = int(os.getenv("OLLAMA_TIMEOUT", "60"))
+			auth_header_name = os.getenv("OLLAMA_AUTH_HEADER", "Authorization").strip() or "Authorization"
 
-		if not base_url or not model:
-			return None
+			if not base_url or not model:
+				return None
 
-		prompt = build_prompt(label_type, text, language_name)
-		OLLAMA_RATE_LIMITER.wait()
+			prompt = build_prompt(label_type, text, language_name)
+			OLLAMA_RATE_LIMITER.wait()
 
-		import requests
+			import requests
 
-		response = requests.post(
-			f"{base_url}/api/chat",
-			headers={
-				auth_header_name: f"Bearer {api_key}",
-				"Content-Type": "application/json",
-			},
-			json={
-				"model": model,
-				"messages": [{"role": "user", "content": prompt}],
-				"stream": False,
-				"options": {
-					"temperature": 0.1,
+			response = requests.post(
+				f"{base_url}/api/chat",
+				headers={
+					auth_header_name: f"Bearer {api_key}",
+					"Content-Type": "application/json",
 				},
-			},
-			timeout=timeout,
-		)
+				json={
+					"model": model,
+					"messages": [{"role": "user", "content": prompt}],
+					"stream": False,
+					"options": {
+						"temperature": 0.1,
+					},
+				},
+				timeout=timeout,
+			)
 
-		if response.status_code >= 400:
-			payload_text = response.text[:500]
-			if _is_non_retryable_ollama_error(response.status_code, payload_text):
-				_disable_ollama(
-					f"status={response.status_code}; payload={payload_text}"
-				)
-			return None
+			if response.status_code >= 400:
+				payload_text = response.text[:500]
+				if _is_non_retryable_ollama_error(response.status_code, payload_text):
+					_disable_ollama(
+						f"status={response.status_code}; payload={payload_text}"
+					)
+				return None
 
-		response.raise_for_status()
-		payload = response.json()
+			response.raise_for_status()
+			payload = response.json()
 		response_text = ""
 		if isinstance(payload, dict) and isinstance(payload.get("message"), dict):
 			response_text = str(payload["message"].get("content", ""))
