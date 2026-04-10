@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import threading
@@ -78,6 +79,8 @@ CLAUDE_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 OPENAI_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 OPENROUTER_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 OLLAMA_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
+
+logger = logging.getLogger(__name__)
 
 
 _CLAUDE_DISABLED = False
@@ -219,13 +222,13 @@ class LabelingResult:
 	labeled_rows: list[dict[str, Any]]
 	needs_review_rows: list[dict[str, Any]]
 	rejected_low_confidence: int
-	claude_count: int
-	openai_count: int
-	openrouter_count: int
-	ollama_count: int
-	needs_review_count: int
-	total_input: int
-	total_output: int
+	claude_count: int = 0
+	openai_count: int = 0
+	openrouter_count: int = 0
+	ollama_count: int = 0
+	needs_review_count: int = 0
+	total_input: int = 0
+	total_output: int = 0
 
 
 def build_prompt(label_type: str, text: str, language_name: str) -> str:
@@ -302,7 +305,7 @@ def label_with_claude(text: str, label_type: str, language_name: str) -> LabelRe
 		api_key = os.getenv("ANTHROPIC_API_KEY", "")
 		if not api_key:
 			return None
-		timeout = float(os.getenv("CLAUDE_TIMEOUT", "25"))
+		timeout = min(15.0, float(os.getenv("CLAUDE_TIMEOUT", "15")))
 
 		prompt = build_prompt(label_type, text, language_name)
 
@@ -345,7 +348,7 @@ def label_with_openai(text: str, label_type: str, language_name: str) -> LabelRe
 		api_key = os.getenv("OPENAI_API_KEY", "")
 		if not api_key:
 			return None
-		timeout = float(os.getenv("OPENAI_TIMEOUT", "25"))
+		timeout = min(15.0, float(os.getenv("OPENAI_TIMEOUT", "15")))
 
 		prompt = build_prompt(label_type, text, language_name)
 
@@ -379,6 +382,9 @@ def label_with_openai(text: str, label_type: str, language_name: str) -> LabelRe
 
 
 def label_with_openrouter(text: str, label_type: str, language_name: str) -> LabelResult | None:
+	import os
+	import requests
+
 	try:
 		if _is_openrouter_disabled():
 			return None
@@ -387,68 +393,42 @@ def label_with_openrouter(text: str, label_type: str, language_name: str) -> Lab
 			if _is_openrouter_disabled():
 				return None
 
-			base_url = (
-				os.getenv("OPENROUTER_BASE_URL", "").strip()
-				or os.getenv("OLLAMA_ENDPOINT", "").strip()
-				or os.getenv("OLLAMA_BASE_URL", "").strip()
-				or "https://openrouter.ai/api/v1"
-			).rstrip("/")
-			model = (
-				os.getenv("OPENROUTER_MODEL", "").strip()
-				or os.getenv("OLLAMA_MODEL", "").strip()
-				or "google/gemma-4-26b-a4b-it:free"
-			)
-			api_key = os.getenv("OPENROUTER_API_KEY", "").strip() or os.getenv("OLLAMA_API_KEY", "").strip()
-			timeout = int(os.getenv("OPENROUTER_TIMEOUT", os.getenv("OLLAMA_TIMEOUT", "20")))
-			referer = os.getenv("OPENROUTER_SITE_URL", os.getenv("FRONTEND_URL", "")).strip()
-			title = os.getenv("OPENROUTER_APP_NAME", "BhashaData").strip() or "BhashaData"
+			api_key = os.getenv("OPENROUTER_API_KEY")
+			model = os.getenv("OPENROUTER_MODEL", "google/gemma-3-27b-it:free")
 
-			if not base_url or not model:
+			if not api_key:
 				return None
 
 			prompt = build_prompt(label_type, text, language_name)
 			OPENROUTER_RATE_LIMITER.wait()
 
-			default_headers = {"Content-Type": "application/json"}
-			if referer:
-				default_headers["HTTP-Referer"] = referer
-			if title:
-				default_headers["X-Title"] = title
-
-			import requests
-
 			response = requests.post(
-				f"{base_url.rstrip('/')}/chat/completions",
+				"https://openrouter.ai/api/v1/chat/completions",
 				headers={
 					"Authorization": f"Bearer {api_key}",
-					**default_headers,
+					"Content-Type": "application/json",
+					"HTTP-Referer": "https://arthaai.com",
+					"X-Title": "Artha AI",
 				},
 				json={
 					"model": model,
 					"messages": [{"role": "user", "content": prompt}],
-					"temperature": 0.1,
 					"max_tokens": 200,
-					"response_format": {"type": "json_object"},
+					"temperature": 0.1,
 				},
-				timeout=timeout,
+				timeout=15,
 			)
 
 			if response.status_code >= 400:
 				payload_text = response.text[:500]
-				status_code = response.status_code
-				if _is_non_retryable_openrouter_error(status_code, payload_text):
+				if _is_non_retryable_openrouter_error(response.status_code, payload_text):
 					_disable_openrouter(payload_text)
 				return None
 
 			response.raise_for_status()
-			payload = response.json()
-		response_text = ""
-		if isinstance(payload, dict) and isinstance(payload.get("choices"), list):
-			choices = payload.get("choices") or []
-			if choices and isinstance(choices[0], dict):
-				message = choices[0].get("message") or {}
-				if isinstance(message, dict):
-					response_text = str(message.get("content", ""))
+			data = response.json()
+			response_text = str(data["choices"][0]["message"]["content"])
+
 		parsed = parse_llm_response(response_text, label_type)
 		if parsed is None:
 			return None
@@ -459,8 +439,8 @@ def label_with_openrouter(text: str, label_type: str, language_name: str) -> Lab
 		parsed.needs_review = False
 		return parsed
 	except Exception as exc:  # noqa: BLE001
-		message = str(exc)
 		status_code = _exception_status_code(exc)
+		message = str(exc)
 		if status_code is not None and _is_non_retryable_openrouter_error(status_code, message):
 			_disable_openrouter(message[:400])
 		elif _looks_like_non_retryable_provider_error(message):
@@ -469,17 +449,71 @@ def label_with_openrouter(text: str, label_type: str, language_name: str) -> Lab
 
 
 def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelResult | None:
-	return label_with_openrouter(text, label_type, language_name)
+	import requests
+
+	try:
+		if _is_ollama_disabled():
+			return None
+
+		base_url = os.getenv("OLLAMA_ENDPOINT", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")).rstrip("/")
+		model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+		api_key = os.getenv("OLLAMA_API_KEY", "").strip()
+		timeout = min(15, int(os.getenv("OLLAMA_TIMEOUT", "15")))
+
+		prompt = build_prompt(label_type, text, language_name)
+		OLLAMA_RATE_LIMITER.wait()
+
+		headers = {"Content-Type": "application/json"}
+		if api_key:
+			headers["Authorization"] = f"Bearer {api_key}"
+
+		response = requests.post(
+			f"{base_url}/chat/completions",
+			headers=headers,
+			json={
+				"model": model,
+				"messages": [{"role": "user", "content": prompt}],
+				"max_tokens": 200,
+				"temperature": 0.1,
+			},
+			timeout=timeout,
+		)
+
+		if response.status_code >= 400:
+			payload_text = response.text[:500]
+			if _is_non_retryable_ollama_error(response.status_code, payload_text):
+				_disable_ollama(payload_text)
+			return None
+
+		response.raise_for_status()
+		data = response.json()
+		response_text = str(data["choices"][0]["message"]["content"])
+
+		parsed = parse_llm_response(response_text, label_type)
+		if parsed is None:
+			return None
+		if parsed.confidence < 0.75:
+			return None
+
+		parsed.llm_used = "ollama"
+		parsed.needs_review = False
+		return parsed
+	except requests.Timeout:
+		return None
+	except Exception as exc:  # noqa: BLE001
+		status_code = _exception_status_code(exc)
+		message = str(exc)
+		if status_code is not None and _is_non_retryable_ollama_error(status_code, message):
+			_disable_ollama(message[:400])
+		elif _looks_like_non_retryable_provider_error(message):
+			_disable_ollama(message[:400])
+		return None
 
 
 def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 	use_rule_fallback = os.getenv("ENABLE_RULE_FALLBACK_LABELER", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 	try:
-		openrouter_result = label_with_openrouter(text, label_type, language_name)
-		if openrouter_result is not None:
-			return openrouter_result
-
 		claude_result = label_with_claude(text, label_type, language_name)
 		if claude_result is not None:
 			return claude_result
@@ -487,6 +521,14 @@ def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 		openai_result = label_with_openai(text, label_type, language_name)
 		if openai_result is not None:
 			return openai_result
+
+		openrouter_result = label_with_openrouter(text, label_type, language_name)
+		if openrouter_result is not None:
+			return openrouter_result
+
+		ollama_result = label_with_ollama(text, label_type, language_name)
+		if ollama_result is not None:
+			return ollama_result
 	except Exception:  # noqa: BLE001
 		pass
 
@@ -498,7 +540,7 @@ def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 	return LabelResult(
 		label="unknown",
 		confidence=0.0,
-		reason="All providers failed and rule fallback disabled",
+		reason="All LLM providers failed and rule fallback disabled",
 		llm_used="needs_review",
 		needs_review=True,
 		label_type=(label_type or "").lower(),
@@ -665,6 +707,7 @@ def run_labeling_pipeline(
 	needs_review_count = 0
 
 	total = len(rows)
+	all_llms_unavailable_logged = False
 	for index, row in enumerate(rows, start=1):
 		updated_row: dict[str, Any] | None = None
 
@@ -682,7 +725,7 @@ def run_labeling_pipeline(
 				updated_row["label_topic"] = None
 				updated_row["label_ner"] = None
 				updated_row["confidence"] = 0.0
-				updated_row["confidence_reason"] = "Both LLMs failed or returned low confidence"
+				updated_row["confidence_reason"] = "All LLMs failed or returned low confidence"
 				updated_row["llm_used"] = "needs_review"
 				updated_row["needs_review"] = True
 				break
@@ -693,13 +736,19 @@ def run_labeling_pipeline(
 			updated_row["label_topic"] = None
 			updated_row["label_ner"] = None
 			updated_row["confidence"] = 0.0
-			updated_row["confidence_reason"] = "Both LLMs failed or returned low confidence"
+			updated_row["confidence_reason"] = "All LLMs failed or returned low confidence"
 			updated_row["llm_used"] = "needs_review"
 			updated_row["needs_review"] = True
 
 		if bool(updated_row.get("needs_review", False)):
 			needs_review_rows.append(updated_row)
 			needs_review_count += 1
+			logger.warning(
+				"Labeling failed for row %s/%s: %s",
+				index,
+				total,
+				str(updated_row.get("confidence_reason", "LLM unavailable")),
+			)
 		elif float(updated_row.get("confidence", 0.0)) < 0.80:
 			rejected_low_confidence += 1
 		else:
@@ -712,8 +761,11 @@ def run_labeling_pipeline(
 			elif llm_used == "openai":
 				openai_count += 1
 			elif llm_used == "ollama":
-				openrouter_count += 1
 				ollama_count += 1
+
+		if index == 3 and needs_review_count == 3 and not all_llms_unavailable_logged:
+			logger.warning("All LLMs appear to be unavailable. Check API keys.")
+			all_llms_unavailable_logged = True
 
 		if progress_callback is not None:
 			progress_callback(index, total)
