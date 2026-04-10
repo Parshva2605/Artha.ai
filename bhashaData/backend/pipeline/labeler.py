@@ -511,8 +511,6 @@ def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelRe
 
 
 def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
-	use_rule_fallback = os.getenv("ENABLE_RULE_FALLBACK_LABELER", "false").strip().lower() in {"1", "true", "yes", "on"}
-
 	try:
 		claude_result = label_with_claude(text, label_type, language_name)
 		if claude_result is not None:
@@ -531,11 +529,6 @@ def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 			return ollama_result
 	except Exception:  # noqa: BLE001
 		pass
-
-	if use_rule_fallback:
-		fallback_result = _rule_based_label(text, label_type)
-		if fallback_result is not None:
-			return fallback_result
 
 	return LabelResult(
 		label="unknown",
