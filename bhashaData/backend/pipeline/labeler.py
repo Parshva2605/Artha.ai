@@ -78,6 +78,42 @@ OPENAI_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 OLLAMA_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 
 
+_OLLAMA_DISABLED = False
+_OLLAMA_DISABLE_REASON = ""
+_OLLAMA_DISABLE_LOCK = threading.Lock()
+
+
+def _disable_ollama(reason: str) -> None:
+	global _OLLAMA_DISABLED, _OLLAMA_DISABLE_REASON
+	with _OLLAMA_DISABLE_LOCK:
+		_OLLAMA_DISABLED = True
+		_OLLAMA_DISABLE_REASON = reason
+
+
+def _is_ollama_disabled() -> bool:
+	with _OLLAMA_DISABLE_LOCK:
+		return _OLLAMA_DISABLED
+
+
+def _is_non_retryable_ollama_error(status_code: int, payload_text: str) -> bool:
+	lowered = (payload_text or "").lower()
+	if status_code in {401, 402, 403, 404}:
+		return True
+	return any(
+		token in lowered
+		for token in (
+			"insufficient",
+			"quota",
+			"credit",
+			"payment required",
+			"unauthorized",
+			"forbidden",
+			"invalid api key",
+			"model not found",
+		)
+	)
+
+
 @dataclass
 class LabelResult:
 	label: str
@@ -238,6 +274,9 @@ def label_with_openai(text: str, label_type: str, language_name: str) -> LabelRe
 
 def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelResult | None:
 	try:
+		if _is_ollama_disabled():
+			return None
+
 		base_url = (
 			os.getenv("OLLAMA_ENDPOINT", "").strip()
 			or os.getenv("OLLAMA_BASE_URL", "").strip()
@@ -271,6 +310,15 @@ def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelRe
 			},
 			timeout=timeout,
 		)
+
+		if response.status_code >= 400:
+			payload_text = response.text[:500]
+			if _is_non_retryable_ollama_error(response.status_code, payload_text):
+				_disable_ollama(
+					f"status={response.status_code}; payload={payload_text}"
+				)
+			return None
+
 		response.raise_for_status()
 		payload = response.json()
 		response_text = ""

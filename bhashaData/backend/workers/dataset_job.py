@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, is_dataclass
@@ -293,13 +294,70 @@ def generate_dataset_task(job_id: str, request: dict) -> dict[str, Any]:
         update_job_status(db, job_id, "labeling")
         report_progress(job_id, "labeling", 50, "Starting labeling", per_language_status)
 
+        label_progress_lock = threading.Lock()
+        label_stage_progress: dict[str, dict[str, int]] = {
+            language_code: {"current": 0, "total": 1}
+            for language_code in languages
+        }
+
+        def _label_stage_percent() -> int:
+            if not languages:
+                return 75
+            done_ratio = 0.0
+            for language_code in languages:
+                progress = label_stage_progress.get(language_code, {"current": 0, "total": 1})
+                total = max(1, int(progress.get("total", 1)))
+                current = min(total, max(0, int(progress.get("current", 0))))
+                done_ratio += current / total
+            return int(50 + (done_ratio / len(languages)) * 25)
+
+        def _make_label_progress_callback(language_code: str, total_rows: int):
+            threshold = max(5, total_rows // 20) if total_rows > 0 else 1
+            last_reported = {"rows": 0}
+
+            def _callback(current: int, total: int) -> None:
+                should_report = False
+                with label_progress_lock:
+                    label_stage_progress[language_code] = {
+                        "current": int(current),
+                        "total": max(1, int(total)),
+                    }
+                    per_language_status[language_code]["step"] = "labeling"
+                    per_language_status[language_code]["rows_labeled"] = int(current)
+
+                    if current >= total or (current - last_reported["rows"]) >= threshold:
+                        last_reported["rows"] = int(current)
+                        should_report = True
+
+                    progress_percent = _label_stage_percent()
+
+                if should_report:
+                    report_progress(
+                        job_id,
+                        "labeling",
+                        progress_percent,
+                        f"Labeling {language_code}: {current}/{total}",
+                        per_language_status,
+                    )
+
+            return _callback
+
         def label_language(language_code: str):
             language_config = get_config_by_code(language_code)
             clean_result = clean_results[language_code]
+            rows_for_labeling = getattr(clean_result, "clean_rows", [])[: quantity_per_language * 3]
+
+            with label_progress_lock:
+                label_stage_progress[language_code] = {
+                    "current": 0,
+                    "total": max(1, len(rows_for_labeling)),
+                }
+
             return run_labeling_pipeline(
-                rows=getattr(clean_result, "clean_rows", [])[: quantity_per_language * 3],
+                rows=rows_for_labeling,
                 label_type=label_type,
                 language_config=language_config,
+                progress_callback=_make_label_progress_callback(language_code, len(rows_for_labeling)),
             )
 
         label_results = _run_parallel_with_progress(
@@ -312,6 +370,14 @@ def generate_dataset_task(job_id: str, request: dict) -> dict[str, Any]:
             task_factory=label_language,
             per_language_status=per_language_status,
         )
+
+        for language_code, result in label_results.items():
+            processed_rows = int(getattr(result, "total_input", 0))
+            if processed_rows > 0:
+                per_language_status[language_code]["rows_labeled"] = processed_rows
+                per_language_status[language_code]["step"] = "labeled"
+
+        report_progress(job_id, "labeling", 75, "Labeling complete", per_language_status)
 
         _ensure_not_cancelled(db, job_id)
         update_job_status(db, job_id, "quality_check")
