@@ -37,6 +37,7 @@ class QualityReport:
 	total_rejected_low_confidence: int
 	claude_count: int
 	openai_count: int
+	openrouter_count: int
 	ollama_count: int
 	needs_review_count: int
 	shortfall_warnings: list[str]
@@ -249,6 +250,7 @@ def generate_quality_report(
 		total_rejected_low_confidence=getattr(labeling_result, "rejected_low_confidence", 0),
 		claude_count=getattr(labeling_result, "claude_count", 0),
 		openai_count=getattr(labeling_result, "openai_count", 0),
+		openrouter_count=getattr(labeling_result, "openrouter_count", getattr(labeling_result, "ollama_count", 0)),
 		ollama_count=getattr(labeling_result, "ollama_count", 0),
 		needs_review_count=getattr(labeling_result, "needs_review_count", 0),
 		shortfall_warnings=shortfall_warnings,

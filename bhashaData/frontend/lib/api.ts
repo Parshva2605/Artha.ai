@@ -173,6 +173,7 @@ export async function getQualityReport(jobId: string): Promise<QualityReport> {
     total_needs_review: number;
     claude_count: number;
     openai_count: number;
+    openrouter_count: number;
     ollama_count: number;
     balance_result?: { is_balanced?: boolean };
     is_balanced?: boolean;
@@ -189,6 +190,7 @@ export async function getQualityReport(jobId: string): Promise<QualityReport> {
     total_needs_review: raw.total_needs_review,
     claude_count: raw.claude_count,
     openai_count: raw.openai_count,
+    openrouter_count: raw.openrouter_count ?? raw.ollama_count,
     ollama_count: raw.ollama_count,
   };
 }

@@ -76,6 +76,7 @@ class _RateLimiter:
 
 CLAUDE_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 OPENAI_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
+OPENROUTER_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 OLLAMA_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 
 
@@ -87,11 +88,16 @@ _OPENAI_DISABLED = False
 _OPENAI_DISABLE_REASON = ""
 _OPENAI_DISABLE_LOCK = threading.Lock()
 
+_OPENROUTER_DISABLED = False
+_OPENROUTER_DISABLE_REASON = ""
+_OPENROUTER_DISABLE_LOCK = threading.Lock()
+
+_OPENROUTER_MAX_CONCURRENCY = max(1, int(os.getenv("OPENROUTER_MAX_CONCURRENCY", "4")))
+_OPENROUTER_SEMAPHORE = threading.Semaphore(_OPENROUTER_MAX_CONCURRENCY)
+
 _OLLAMA_DISABLED = False
 _OLLAMA_DISABLE_REASON = ""
 _OLLAMA_DISABLE_LOCK = threading.Lock()
-_OLLAMA_MAX_CONCURRENCY = max(1, int(os.getenv("OLLAMA_MAX_CONCURRENCY", "4")))
-_OLLAMA_SEMAPHORE = threading.Semaphore(_OLLAMA_MAX_CONCURRENCY)
 
 
 def _disable_claude(reason: str) -> None:
@@ -116,6 +122,18 @@ def _disable_openai(reason: str) -> None:
 def _is_openai_disabled() -> bool:
 	with _OPENAI_DISABLE_LOCK:
 		return _OPENAI_DISABLED
+
+
+def _disable_openrouter(reason: str) -> None:
+	global _OPENROUTER_DISABLED, _OPENROUTER_DISABLE_REASON
+	with _OPENROUTER_DISABLE_LOCK:
+		_OPENROUTER_DISABLED = True
+		_OPENROUTER_DISABLE_REASON = reason
+
+
+def _is_openrouter_disabled() -> bool:
+	with _OPENROUTER_DISABLE_LOCK:
+		return _OPENROUTER_DISABLED
 
 
 def _disable_ollama(reason: str) -> None:
@@ -149,6 +167,12 @@ def _is_non_retryable_ollama_error(status_code: int, payload_text: str) -> bool:
 	)
 
 
+def _is_non_retryable_openrouter_error(status_code: int, payload_text: str) -> bool:
+	if status_code in {401, 402, 403, 404, 429}:
+		return True
+	return _looks_like_non_retryable_provider_error(payload_text)
+
+
 def _looks_like_non_retryable_provider_error(message: str) -> bool:
 	lowered = (message or "").lower()
 	return any(
@@ -165,6 +189,18 @@ def _looks_like_non_retryable_provider_error(message: str) -> bool:
 			"authentication",
 		)
 	)
+
+
+def _exception_status_code(exc: Exception) -> int | None:
+	response = getattr(exc, "response", None)
+	if response is not None:
+		status_code = getattr(response, "status_code", None)
+		if isinstance(status_code, int):
+			return status_code
+	status_code = getattr(exc, "status_code", None)
+	if isinstance(status_code, int):
+		return status_code
+	return None
 
 
 @dataclass
@@ -185,6 +221,7 @@ class LabelingResult:
 	rejected_low_confidence: int
 	claude_count: int
 	openai_count: int
+	openrouter_count: int
 	ollama_count: int
 	needs_review_count: int
 	total_input: int
@@ -294,7 +331,8 @@ def label_with_claude(text: str, label_type: str, language_name: str) -> LabelRe
 		parsed.needs_review = False
 		return parsed
 	except Exception as exc:  # noqa: BLE001
-		if _looks_like_non_retryable_provider_error(str(exc)):
+		status_code = _exception_status_code(exc)
+		if status_code in {401, 402, 403, 404, 429} or _looks_like_non_retryable_provider_error(str(exc)):
 			_disable_claude(str(exc)[:400])
 		return None
 
@@ -334,85 +372,114 @@ def label_with_openai(text: str, label_type: str, language_name: str) -> LabelRe
 		parsed.needs_review = False
 		return parsed
 	except Exception as exc:  # noqa: BLE001
-		if _looks_like_non_retryable_provider_error(str(exc)):
+		status_code = _exception_status_code(exc)
+		if status_code in {401, 402, 403, 404, 429} or _looks_like_non_retryable_provider_error(str(exc)):
 			_disable_openai(str(exc)[:400])
 		return None
 
 
-def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelResult | None:
+def label_with_openrouter(text: str, label_type: str, language_name: str) -> LabelResult | None:
 	try:
-		if _is_ollama_disabled():
+		if _is_openrouter_disabled():
 			return None
 
-		with _OLLAMA_SEMAPHORE:
-			if _is_ollama_disabled():
+		with _OPENROUTER_SEMAPHORE:
+			if _is_openrouter_disabled():
 				return None
 
 			base_url = (
-				os.getenv("OLLAMA_ENDPOINT", "").strip()
+				os.getenv("OPENROUTER_BASE_URL", "").strip()
+				or os.getenv("OLLAMA_ENDPOINT", "").strip()
 				or os.getenv("OLLAMA_BASE_URL", "").strip()
+				or "https://openrouter.ai/api/v1"
 			).rstrip("/")
-			model = os.getenv("OLLAMA_MODEL", "").strip()
-			api_key = os.getenv("OLLAMA_API_KEY", "").strip()
-			timeout = int(os.getenv("OLLAMA_TIMEOUT", "20"))
-			auth_header_name = os.getenv("OLLAMA_AUTH_HEADER", "Authorization").strip() or "Authorization"
+			model = (
+				os.getenv("OPENROUTER_MODEL", "").strip()
+				or os.getenv("OLLAMA_MODEL", "").strip()
+				or "google/gemma-4-26b-a4b-it:free"
+			)
+			api_key = os.getenv("OPENROUTER_API_KEY", "").strip() or os.getenv("OLLAMA_API_KEY", "").strip()
+			timeout = int(os.getenv("OPENROUTER_TIMEOUT", os.getenv("OLLAMA_TIMEOUT", "20")))
+			referer = os.getenv("OPENROUTER_SITE_URL", os.getenv("FRONTEND_URL", "")).strip()
+			title = os.getenv("OPENROUTER_APP_NAME", "BhashaData").strip() or "BhashaData"
 
 			if not base_url or not model:
 				return None
 
 			prompt = build_prompt(label_type, text, language_name)
-			OLLAMA_RATE_LIMITER.wait()
+			OPENROUTER_RATE_LIMITER.wait()
+
+			default_headers = {"Content-Type": "application/json"}
+			if referer:
+				default_headers["HTTP-Referer"] = referer
+			if title:
+				default_headers["X-Title"] = title
 
 			import requests
 
 			response = requests.post(
-				f"{base_url}/api/chat",
+				f"{base_url.rstrip('/')}/chat/completions",
 				headers={
-					auth_header_name: f"Bearer {api_key}",
-					"Content-Type": "application/json",
+					"Authorization": f"Bearer {api_key}",
+					**default_headers,
 				},
 				json={
 					"model": model,
 					"messages": [{"role": "user", "content": prompt}],
-					"stream": False,
-					"options": {
-						"temperature": 0.1,
-					},
+					"temperature": 0.1,
+					"max_tokens": 200,
+					"response_format": {"type": "json_object"},
 				},
 				timeout=timeout,
 			)
 
 			if response.status_code >= 400:
 				payload_text = response.text[:500]
-				if _is_non_retryable_ollama_error(response.status_code, payload_text):
-					_disable_ollama(
-						f"status={response.status_code}; payload={payload_text}"
-					)
+				status_code = response.status_code
+				if _is_non_retryable_openrouter_error(status_code, payload_text):
+					_disable_openrouter(payload_text)
 				return None
 
 			response.raise_for_status()
 			payload = response.json()
 		response_text = ""
-		if isinstance(payload, dict) and isinstance(payload.get("message"), dict):
-			response_text = str(payload["message"].get("content", ""))
-
+		if isinstance(payload, dict) and isinstance(payload.get("choices"), list):
+			choices = payload.get("choices") or []
+			if choices and isinstance(choices[0], dict):
+				message = choices[0].get("message") or {}
+				if isinstance(message, dict):
+					response_text = str(message.get("content", ""))
 		parsed = parse_llm_response(response_text, label_type)
 		if parsed is None:
 			return None
 		if parsed.confidence < 0.75:
 			return None
 
-		parsed.llm_used = "ollama"
+		parsed.llm_used = "openrouter"
 		parsed.needs_review = False
 		return parsed
-	except Exception:  # noqa: BLE001
+	except Exception as exc:  # noqa: BLE001
+		message = str(exc)
+		status_code = _exception_status_code(exc)
+		if status_code is not None and _is_non_retryable_openrouter_error(status_code, message):
+			_disable_openrouter(message[:400])
+		elif _looks_like_non_retryable_provider_error(message):
+			_disable_openrouter(message[:400])
 		return None
+
+
+def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelResult | None:
+	return label_with_openrouter(text, label_type, language_name)
 
 
 def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 	use_rule_fallback = os.getenv("ENABLE_RULE_FALLBACK_LABELER", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 	try:
+		openrouter_result = label_with_openrouter(text, label_type, language_name)
+		if openrouter_result is not None:
+			return openrouter_result
+
 		claude_result = label_with_claude(text, label_type, language_name)
 		if claude_result is not None:
 			return claude_result
@@ -420,10 +487,6 @@ def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 		openai_result = label_with_openai(text, label_type, language_name)
 		if openai_result is not None:
 			return openai_result
-
-		ollama_result = label_with_ollama(text, label_type, language_name)
-		if ollama_result is not None:
-			return ollama_result
 	except Exception:  # noqa: BLE001
 		pass
 
@@ -597,6 +660,7 @@ def run_labeling_pipeline(
 	rejected_low_confidence = 0
 	claude_count = 0
 	openai_count = 0
+	openrouter_count = 0
 	ollama_count = 0
 	needs_review_count = 0
 
@@ -643,9 +707,12 @@ def run_labeling_pipeline(
 			llm_used = str(updated_row.get("llm_used", ""))
 			if llm_used == "claude":
 				claude_count += 1
+			elif llm_used == "openrouter":
+				openrouter_count += 1
 			elif llm_used == "openai":
 				openai_count += 1
 			elif llm_used == "ollama":
+				openrouter_count += 1
 				ollama_count += 1
 
 		if progress_callback is not None:
@@ -657,6 +724,7 @@ def run_labeling_pipeline(
 		rejected_low_confidence=rejected_low_confidence,
 		claude_count=claude_count,
 		openai_count=openai_count,
+		openrouter_count=openrouter_count,
 		ollama_count=ollama_count,
 		needs_review_count=needs_review_count,
 		total_input=len(rows),

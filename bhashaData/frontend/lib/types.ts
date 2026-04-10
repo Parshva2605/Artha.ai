@@ -61,6 +61,7 @@ export interface QualityReport {
   total_needs_review: number;
   claude_count: number;
   openai_count: number;
+  openrouter_count: number;
   ollama_count: number;
 }
 

@@ -162,6 +162,7 @@ class QualityReportResponse(BaseModel):
     total_rejected_low_confidence: int
     claude_count: int
     openai_count: int
+    openrouter_count: int
     ollama_count: int
     needs_review_count: int
     shortfall_warnings: list[str]

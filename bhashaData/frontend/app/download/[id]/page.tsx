@@ -141,8 +141,8 @@ export default function DownloadPage() {
             <p className="text-xl font-semibold">{report.claude_count} / {report.openai_count}</p>
           </div>
           <div className="rounded-lg border p-3">
-            <p className="text-sm text-slate-600">Ollama</p>
-            <p className="text-xl font-semibold">{report.ollama_count}</p>
+            <p className="text-sm text-slate-600">OpenRouter</p>
+            <p className="text-xl font-semibold">{report.openrouter_count ?? report.ollama_count}</p>
           </div>
         </div>
       </Card>

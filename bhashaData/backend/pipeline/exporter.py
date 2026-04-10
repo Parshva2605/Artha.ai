@@ -333,6 +333,7 @@ def generate_metadata(
 		"llm_usage": {
 			"claude": getattr(quality_report, "claude_count", 0),
 			"openai": getattr(quality_report, "openai_count", 0),
+			"openrouter": getattr(quality_report, "openrouter_count", getattr(quality_report, "ollama_count", 0)),
 			"ollama": getattr(quality_report, "ollama_count", 0),
 			"needs_review": getattr(quality_report, "needs_review_count", 0),
 		},
