@@ -79,9 +79,43 @@ OPENAI_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 OLLAMA_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 
 
+_CLAUDE_DISABLED = False
+_CLAUDE_DISABLE_REASON = ""
+_CLAUDE_DISABLE_LOCK = threading.Lock()
+
+_OPENAI_DISABLED = False
+_OPENAI_DISABLE_REASON = ""
+_OPENAI_DISABLE_LOCK = threading.Lock()
+
 _OLLAMA_DISABLED = False
 _OLLAMA_DISABLE_REASON = ""
 _OLLAMA_DISABLE_LOCK = threading.Lock()
+_OLLAMA_MAX_CONCURRENCY = max(1, int(os.getenv("OLLAMA_MAX_CONCURRENCY", "4")))
+_OLLAMA_SEMAPHORE = threading.Semaphore(_OLLAMA_MAX_CONCURRENCY)
+
+
+def _disable_claude(reason: str) -> None:
+	global _CLAUDE_DISABLED, _CLAUDE_DISABLE_REASON
+	with _CLAUDE_DISABLE_LOCK:
+		_CLAUDE_DISABLED = True
+		_CLAUDE_DISABLE_REASON = reason
+
+
+def _is_claude_disabled() -> bool:
+	with _CLAUDE_DISABLE_LOCK:
+		return _CLAUDE_DISABLED
+
+
+def _disable_openai(reason: str) -> None:
+	global _OPENAI_DISABLED, _OPENAI_DISABLE_REASON
+	with _OPENAI_DISABLE_LOCK:
+		_OPENAI_DISABLED = True
+		_OPENAI_DISABLE_REASON = reason
+
+
+def _is_openai_disabled() -> bool:
+	with _OPENAI_DISABLE_LOCK:
+		return _OPENAI_DISABLED
 
 
 def _disable_ollama(reason: str) -> None:
@@ -111,6 +145,24 @@ def _is_non_retryable_ollama_error(status_code: int, payload_text: str) -> bool:
 			"forbidden",
 			"invalid api key",
 			"model not found",
+		)
+	)
+
+
+def _looks_like_non_retryable_provider_error(message: str) -> bool:
+	lowered = (message or "").lower()
+	return any(
+		token in lowered
+		for token in (
+			"insufficient",
+			"quota",
+			"credit",
+			"payment required",
+			"unauthorized",
+			"forbidden",
+			"invalid api key",
+			"incorrect api key",
+			"authentication",
 		)
 	)
 
@@ -207,20 +259,25 @@ def parse_llm_response(response_text: str, label_type: str) -> LabelResult | Non
 
 def label_with_claude(text: str, label_type: str, language_name: str) -> LabelResult | None:
 	try:
+		if _is_claude_disabled():
+			return None
+
 		api_key = os.getenv("ANTHROPIC_API_KEY", "")
 		if not api_key:
 			return None
+		timeout = float(os.getenv("CLAUDE_TIMEOUT", "25"))
 
 		prompt = build_prompt(label_type, text, language_name)
 
 		from anthropic import Anthropic
 
 		CLAUDE_RATE_LIMITER.wait()
-		client = Anthropic(api_key=api_key)
+		client = Anthropic(api_key=api_key, timeout=timeout)
 		response = client.messages.create(
 			model="claude-sonnet-4-20250514",
 			max_tokens=200,
 			messages=[{"role": "user", "content": prompt}],
+			timeout=timeout,
 		)
 
 		response_text = ""
@@ -236,27 +293,34 @@ def label_with_claude(text: str, label_type: str, language_name: str) -> LabelRe
 		parsed.llm_used = "claude"
 		parsed.needs_review = False
 		return parsed
-	except Exception:  # noqa: BLE001
+	except Exception as exc:  # noqa: BLE001
+		if _looks_like_non_retryable_provider_error(str(exc)):
+			_disable_claude(str(exc)[:400])
 		return None
 
 
 def label_with_openai(text: str, label_type: str, language_name: str) -> LabelResult | None:
 	try:
+		if _is_openai_disabled():
+			return None
+
 		api_key = os.getenv("OPENAI_API_KEY", "")
 		if not api_key:
 			return None
+		timeout = float(os.getenv("OPENAI_TIMEOUT", "25"))
 
 		prompt = build_prompt(label_type, text, language_name)
 
 		from openai import OpenAI
 
 		OPENAI_RATE_LIMITER.wait()
-		client = OpenAI(api_key=api_key)
+		client = OpenAI(api_key=api_key, timeout=timeout)
 		response = client.chat.completions.create(
 			model="gpt-4o",
 			max_tokens=200,
 			messages=[{"role": "user", "content": prompt}],
 			response_format={"type": "json_object"},
+			timeout=timeout,
 		)
 
 		response_text = str(response.choices[0].message.content or "")
@@ -269,7 +333,9 @@ def label_with_openai(text: str, label_type: str, language_name: str) -> LabelRe
 		parsed.llm_used = "openai"
 		parsed.needs_review = False
 		return parsed
-	except Exception:  # noqa: BLE001
+	except Exception as exc:  # noqa: BLE001
+		if _looks_like_non_retryable_provider_error(str(exc)):
+			_disable_openai(str(exc)[:400])
 		return None
 
 
@@ -278,50 +344,54 @@ def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelRe
 		if _is_ollama_disabled():
 			return None
 
-		base_url = (
-			os.getenv("OLLAMA_ENDPOINT", "").strip()
-			or os.getenv("OLLAMA_BASE_URL", "").strip()
-		).rstrip("/")
-		model = os.getenv("OLLAMA_MODEL", "").strip()
-		api_key = os.getenv("OLLAMA_API_KEY", "").strip()
-		timeout = int(os.getenv("OLLAMA_TIMEOUT", "60"))
-		auth_header_name = os.getenv("OLLAMA_AUTH_HEADER", "Authorization").strip() or "Authorization"
+		with _OLLAMA_SEMAPHORE:
+			if _is_ollama_disabled():
+				return None
 
-		if not base_url or not model:
-			return None
+			base_url = (
+				os.getenv("OLLAMA_ENDPOINT", "").strip()
+				or os.getenv("OLLAMA_BASE_URL", "").strip()
+			).rstrip("/")
+			model = os.getenv("OLLAMA_MODEL", "").strip()
+			api_key = os.getenv("OLLAMA_API_KEY", "").strip()
+			timeout = int(os.getenv("OLLAMA_TIMEOUT", "20"))
+			auth_header_name = os.getenv("OLLAMA_AUTH_HEADER", "Authorization").strip() or "Authorization"
 
-		prompt = build_prompt(label_type, text, language_name)
-		OLLAMA_RATE_LIMITER.wait()
+			if not base_url or not model:
+				return None
 
-		import requests
+			prompt = build_prompt(label_type, text, language_name)
+			OLLAMA_RATE_LIMITER.wait()
 
-		response = requests.post(
-			f"{base_url}/api/chat",
-			headers={
-				auth_header_name: f"Bearer {api_key}",
-				"Content-Type": "application/json",
-			},
-			json={
-				"model": model,
-				"messages": [{"role": "user", "content": prompt}],
-				"stream": False,
-				"options": {
-					"temperature": 0.1,
+			import requests
+
+			response = requests.post(
+				f"{base_url}/api/chat",
+				headers={
+					auth_header_name: f"Bearer {api_key}",
+					"Content-Type": "application/json",
 				},
-			},
-			timeout=timeout,
-		)
+				json={
+					"model": model,
+					"messages": [{"role": "user", "content": prompt}],
+					"stream": False,
+					"options": {
+						"temperature": 0.1,
+					},
+				},
+				timeout=timeout,
+			)
 
-		if response.status_code >= 400:
-			payload_text = response.text[:500]
-			if _is_non_retryable_ollama_error(response.status_code, payload_text):
-				_disable_ollama(
-					f"status={response.status_code}; payload={payload_text}"
-				)
-			return None
+			if response.status_code >= 400:
+				payload_text = response.text[:500]
+				if _is_non_retryable_ollama_error(response.status_code, payload_text):
+					_disable_ollama(
+						f"status={response.status_code}; payload={payload_text}"
+					)
+				return None
 
-		response.raise_for_status()
-		payload = response.json()
+			response.raise_for_status()
+			payload = response.json()
 		response_text = ""
 		if isinstance(payload, dict) and isinstance(payload.get("message"), dict):
 			response_text = str(payload["message"].get("content", ""))
