@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -341,6 +342,8 @@ def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelRe
 
 
 def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
+	use_rule_fallback = os.getenv("ENABLE_RULE_FALLBACK_LABELER", "true").strip().lower() in {"1", "true", "yes", "on"}
+
 	try:
 		claude_result = label_with_claude(text, label_type, language_name)
 		if claude_result is not None:
@@ -356,15 +359,108 @@ def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 	except Exception:  # noqa: BLE001
 		pass
 
+	if use_rule_fallback:
+		fallback_result = _rule_based_label(text, label_type)
+		if fallback_result is not None:
+			return fallback_result
+
 	return LabelResult(
 		label="unknown",
 		confidence=0.0,
-		reason="Both LLMs failed or returned low confidence",
+		reason="All providers failed and rule fallback disabled",
 		llm_used="needs_review",
 		needs_review=True,
 		label_type=(label_type or "").lower(),
 		raw_response="",
 	)
+
+
+def _rule_based_label(text: str, label_type: str) -> LabelResult | None:
+	normalized = (label_type or "").lower().strip()
+	text_lower = (text or "").lower()
+
+	if normalized == "sentiment":
+		positive_terms = {
+			"good", "great", "excellent", "love", "awesome", "amazing", "happy", "best",
+			"nice", "liked", "like", "fantastic", "wonderful", "super", "satisfied",
+		}
+		negative_terms = {
+			"bad", "worst", "hate", "awful", "terrible", "poor", "angry", "disappointed",
+			"bug", "issue", "problem", "slow", "crash", "broken", "useless",
+		}
+		pos_hits = sum(1 for token in positive_terms if token in text_lower)
+		neg_hits = sum(1 for token in negative_terms if token in text_lower)
+
+		if pos_hits > neg_hits:
+			label = "positive"
+		elif neg_hits > pos_hits:
+			label = "negative"
+		else:
+			label = "neutral"
+
+		return LabelResult(
+			label=label,
+			confidence=0.84,
+			reason="Rule-based fallback used because external LLM providers were unavailable",
+			llm_used="rule_fallback",
+			needs_review=False,
+			label_type="sentiment",
+			raw_response="",
+		)
+
+	if normalized == "topic":
+		topic_rules = {
+			"sports": {"match", "cricket", "football", "soccer", "tournament", "player", "team", "score"},
+			"technology": {"app", "software", "ai", "tech", "phone", "mobile", "internet", "code", "update"},
+			"food": {"food", "restaurant", "taste", "eat", "dish", "meal", "recipe"},
+			"health": {"health", "hospital", "doctor", "medicine", "fitness", "disease"},
+			"finance": {"money", "bank", "loan", "price", "market", "stock", "payment", "budget"},
+			"education": {"school", "college", "student", "teacher", "exam", "class", "course"},
+			"politics": {"election", "government", "minister", "policy", "party", "vote"},
+			"entertainment": {"movie", "music", "song", "show", "actor", "series", "video"},
+		}
+
+		best_topic = "other"
+		best_hits = 0
+		for topic, terms in topic_rules.items():
+			hits = sum(1 for token in terms if token in text_lower)
+			if hits > best_hits:
+				best_hits = hits
+				best_topic = topic
+
+		return LabelResult(
+			label=best_topic,
+			confidence=0.82,
+			reason="Rule-based fallback used because external LLM providers were unavailable",
+			llm_used="rule_fallback",
+			needs_review=False,
+			label_type="topic",
+			raw_response="",
+		)
+
+	if normalized == "ner":
+		if re.search(r"\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b", text) or re.search(r"\b\d{4}\b", text):
+			label = "DATE"
+		elif any(symbol in text for symbol in ("$", "₹", "€", "£")):
+			label = "CURRENCY"
+		elif any(keyword in text_lower for keyword in ("inc", "ltd", "corp", "company", "university", "bank")):
+			label = "ORGANIZATION"
+		elif any(keyword in text_lower for keyword in ("city", "village", "state", "country", "street", "road")):
+			label = "LOCATION"
+		else:
+			label = "OTHER"
+
+		return LabelResult(
+			label=label,
+			confidence=0.81,
+			reason="Rule-based fallback used because external LLM providers were unavailable",
+			llm_used="rule_fallback",
+			needs_review=False,
+			label_type="ner",
+			raw_response="",
+		)
+
+	return None
 
 
 def label_row(row: dict, label_type: str, language_config: dict) -> dict:
