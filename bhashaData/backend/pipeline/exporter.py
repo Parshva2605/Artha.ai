@@ -358,6 +358,8 @@ def upload_to_supabase(
 	job_id: str,
 	filename: str,
 ) -> str | None:
+	print(f"[UPLOAD] SUPABASE_URL: {bool(os.getenv('SUPABASE_URL'))}")
+	print(f"[UPLOAD] SUPABASE_SERVICE_KEY: {bool(os.getenv('SUPABASE_SERVICE_KEY'))}")
 	supabase_url = os.getenv("SUPABASE_URL")
 	service_key = os.getenv("SUPABASE_SERVICE_KEY")
 
@@ -373,6 +375,7 @@ def upload_to_supabase(
 			if not filename.lower().endswith(".zip"):
 				filename = f"{Path(filename).stem}.zip"
 
+		print(f"[UPLOAD] Uploading {filename} to Supabase...")
 		with path.open("rb") as file_handle:
 			file_data = file_handle.read()
 
@@ -389,13 +392,17 @@ def upload_to_supabase(
 			data=file_data,
 			timeout=60,
 		)
+		print(f"[UPLOAD] Status: {response.status_code}")
+		print(f"[UPLOAD] Response: {response.text[:200]}")
 
 		if response.status_code in [200, 201]:
 			public_url = f"{supabase_url}/storage/v1/object/public/datasets/{upload_path}"
+			print(f"[UPLOAD] Success: {public_url}")
 			return public_url
+		print(f"[UPLOAD] Failed: {response.text}")
 		return None
 	except Exception as e:
-		print(f"Supabase upload error: {e}")
+		print(f"[UPLOAD ERROR] {e}")
 		return None
 
 

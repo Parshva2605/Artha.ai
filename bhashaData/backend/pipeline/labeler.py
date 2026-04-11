@@ -401,6 +401,7 @@ def label_with_openai(text: str, label_type: str, language_name: str) -> LabelRe
 
 def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResult | None:
 	import requests
+	from requests.exceptions import Timeout, ConnectionError
 
 	try:
 		if _is_groq_disabled():
@@ -410,13 +411,13 @@ def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResu
 		if not api_key:
 			return None
 		model = os.getenv("GROQ_MODEL", "llama3-8b-8192").strip() or "llama3-8b-8192"
-		timeout = min(15.0, float(os.getenv("GROQ_TIMEOUT", "15")))
+		timeout = 10
 
 		prompt = build_prompt(label_type, text, language_name)
 
 		GROQ_RATE_LIMITER.wait()
 		import time
-		time.sleep(0.5)
+		time.sleep(0.3)
 		response = requests.post(
 			"https://api.groq.com/openai/v1/chat/completions",
 			headers={
@@ -434,6 +435,12 @@ def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResu
 
 		if response.status_code >= 400:
 			payload_text = response.text[:500]
+			if response.status_code == 429:
+				print("[GROQ] Rate limited")
+				return None
+			if response.status_code != 200:
+				print(f"[GROQ] Status {response.status_code}: {response.text[:100]}")
+				return None
 			if response.status_code in {401, 402, 403, 404, 429} or _looks_like_non_retryable_provider_error(payload_text):
 				_disable_groq(payload_text)
 			return None
@@ -450,12 +457,16 @@ def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResu
 		parsed.llm_used = "groq"
 		parsed.needs_review = False
 		return parsed
-	except requests.Timeout:
+	except Timeout:
+		print("[GROQ] Request timed out")
+		return None
+	except ConnectionError as e:
+		print(f"[GROQ] Connection error: {e}")
 		return None
 	except Exception as e:  # noqa: BLE001
 		import traceback
 		print(f"[GROQ ERROR] {type(e).__name__}: {e}")
-		print(f"[GROQ TRACE] {traceback.format_exc()[:300]}")
+		print(f"[GROQ TRACE] {traceback.format_exc()[:200]}")
 		status_code = _exception_status_code(e)
 		if status_code in {401, 402, 403, 404, 429} or _looks_like_non_retryable_provider_error(str(e)):
 			_disable_groq(str(e)[:400])
