@@ -352,6 +352,18 @@ def quality_report(job_id: str, db=Depends(get_db)):
     return JSONResponse(content=json.loads(job.result_summary))
 
 
+@router.get("/debug-env")
+def debug_env():
+    import os
+
+    return {
+        "GROQ_MODEL": os.getenv("GROQ_MODEL", "NOT SET"),
+        "GROQ_API_KEY_SET": bool(os.getenv("GROQ_API_KEY")),
+        "OPENROUTER_API_KEY_SET": bool(os.getenv("OPENROUTER_API_KEY")),
+        "OLLAMA_BASE_URL": os.getenv("OLLAMA_BASE_URL", "NOT SET"),
+    }
+
+
 @router.get("/health", response_model=HealthResponse)
 def health_check() -> HealthResponse:
     return HealthResponse(
