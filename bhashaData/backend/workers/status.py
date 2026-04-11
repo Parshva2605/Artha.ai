@@ -5,27 +5,21 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
-try:
-	import redis
-except ModuleNotFoundError:  # pragma: no cover
-	redis = None
+import redis as redis_lib
 
+_redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-redis_client = None
-
-if redis is not None:
-	if redis_url.startswith("rediss://"):
-		redis_client = redis.from_url(
-			redis_url,
-			ssl_cert_reqs=None,
-			decode_responses=True,
-		)
-	else:
-		redis_client = redis.from_url(
-			redis_url,
-			decode_responses=True,
-		)
+if _redis_url.startswith("rediss://"):
+    redis_client = redis_lib.from_url(
+        _redis_url,
+        ssl_cert_reqs=None,
+        decode_responses=True
+    )
+else:
+    redis_client = redis_lib.from_url(
+        _redis_url,
+        decode_responses=True
+    )
 
 
 _STATUS_TTL_SECONDS = 24 * 60 * 60
