@@ -415,6 +415,8 @@ def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResu
 		prompt = build_prompt(label_type, text, language_name)
 
 		GROQ_RATE_LIMITER.wait()
+		import time
+		time.sleep(0.5)
 		response = requests.post(
 			"https://api.groq.com/openai/v1/chat/completions",
 			headers={
@@ -450,10 +452,13 @@ def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResu
 		return parsed
 	except requests.Timeout:
 		return None
-	except Exception as exc:  # noqa: BLE001
-		status_code = _exception_status_code(exc)
-		if status_code in {401, 402, 403, 404, 429} or _looks_like_non_retryable_provider_error(str(exc)):
-			_disable_groq(str(exc)[:400])
+	except Exception as e:  # noqa: BLE001
+		import traceback
+		print(f"[GROQ ERROR] {type(e).__name__}: {e}")
+		print(f"[GROQ TRACE] {traceback.format_exc()[:300]}")
+		status_code = _exception_status_code(e)
+		if status_code in {401, 402, 403, 404, 429} or _looks_like_non_retryable_provider_error(str(e)):
+			_disable_groq(str(e)[:400])
 		return None
 
 
@@ -470,7 +475,10 @@ def label_with_openrouter(text: str, label_type: str, language_name: str) -> Lab
 				return None
 
 			api_key = os.getenv("OPENROUTER_API_KEY")
-			model = os.getenv("OPENROUTER_MODEL", "google/gemma-3-27b-it:free")
+			model = os.getenv(
+				"OPENROUTER_MODEL",
+				"mistralai/mistral-7b-instruct:free"
+			)
 
 			if not api_key:
 				return None
