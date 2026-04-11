@@ -87,7 +87,7 @@ class NewsScraper(BaseScraper):
             self._log_warning(f"News live scraping unavailable: {news_error}")
 
         if not collected_rows:
-            collected_rows = self._build_fallback_rows(language_code, domain, min_words, target_count)
+            self._log_warning(f"News scraper returned 0 rows for {language_code}/{domain}")
 
         collected_count = len(collected_rows)
         return ScraperResult(
@@ -156,20 +156,3 @@ class NewsScraper(BaseScraper):
 
         return " ".join(article_parts)
 
-    def _build_fallback_rows(self, language_code: str, domain: str, min_words: int, target_count: int) -> list[dict[str, Any]]:
-        fallback_rows: list[dict[str, Any]] = []
-        fallback_limit = self._fallback_limit(language_code, target_count)
-
-        for index in range(fallback_limit):
-            fallback_rows.append(
-                self._build_row(
-                    text_original=self._fallback_sentence(language_code, self.source_name, domain, index + 1),
-                    source=self.source_name,
-                    source_url=f"https://news.example.com/{language_code}/{domain}/{index + 1}",
-                    source_subreddit=None,
-                    language_code=language_code,
-                    domain=domain,
-                )
-            )
-
-        return [row for row in fallback_rows if self._is_valid_text(row["text_original"], min_words * 3)]

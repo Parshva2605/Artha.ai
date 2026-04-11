@@ -86,7 +86,7 @@ class GooglePlayScraper(BaseScraper):
             self._log_warning(f"Google Play live scraping unavailable: {google_play_error}")
 
         if not collected_rows:
-            collected_rows = self._build_fallback_rows(language_code, domain, min_words, target_count)
+            self._log_warning(f"Google Play scraper returned 0 rows for {language_code}/{domain}")
 
         collected_count = len(collected_rows)
         return ScraperResult(
@@ -112,26 +112,3 @@ class GooglePlayScraper(BaseScraper):
             return "neutral"
         return "positive"
 
-    def _build_fallback_rows(self, language_code: str, domain: str, min_words: int, target_count: int) -> list[dict[str, Any]]:
-        fallback_rows: list[dict[str, Any]] = []
-        app_ids = self._resolve_app_ids(domain)
-        fallback_limit = self._fallback_limit(language_code, target_count)
-
-        for index in range(fallback_limit):
-            app_id = app_ids[index % len(app_ids)]
-            star_rating = 5 if index % 3 == 0 else 3 if index % 3 == 1 else 1
-            fallback_rows.append(
-                self._build_row(
-                    text_original=self._fallback_sentence(language_code, self.source_name, domain, index + 1),
-                    source=self.source_name,
-                    source_url=None,
-                    source_subreddit=None,
-                    language_code=language_code,
-                    domain=domain,
-                    app_id=app_id,
-                    star_rating=star_rating,
-                    rating_hint=self._rating_hint(star_rating),
-                )
-            )
-
-        return [row for row in fallback_rows if self._is_valid_text(row["text_original"], min_words)]

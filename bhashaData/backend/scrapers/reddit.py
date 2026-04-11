@@ -19,6 +19,30 @@ class RedditScraper(BaseScraper):
         client_secret = os.getenv("REDDIT_CLIENT_SECRET", "")
         user_agent = os.getenv("REDDIT_USER_AGENT", "BhashaData/1.0")
 
+        if not client_id:
+            print("[REDDIT] REDDIT_CLIENT_ID not set - skipping")
+            return ScraperResult(
+                rows=[],
+                source=self.source_name,
+                language_code=language_code,
+                requested_count=target_count,
+                collected_count=0,
+                warnings=["REDDIT_CLIENT_ID not configured"],
+                success=False,
+            )
+
+        if not client_secret:
+            print("[REDDIT] REDDIT_CLIENT_SECRET not set - skipping")
+            return ScraperResult(
+                rows=[],
+                source=self.source_name,
+                language_code=language_code,
+                requested_count=target_count,
+                collected_count=0,
+                warnings=["REDDIT_CLIENT_SECRET not configured"],
+                success=False,
+            )
+
         try:
             import praw
 
@@ -89,7 +113,7 @@ class RedditScraper(BaseScraper):
             self._log_warning(f"Reddit live scraping unavailable: {reddit_error}")
 
         if not collected_rows:
-            collected_rows = self._build_fallback_rows(language_code, domain, min_words, target_count)
+            self._log_warning(f"Reddit scraper returned 0 rows for {language_code}/{domain}")
 
         collected_count = len(collected_rows)
         return ScraperResult(
@@ -125,20 +149,3 @@ class RedditScraper(BaseScraper):
 
         return True
 
-    def _build_fallback_rows(self, language_code: str, domain: str, min_words: int, target_count: int) -> list[dict[str, Any]]:
-        fallback_rows: list[dict[str, Any]] = []
-        fallback_limit = self._fallback_limit(language_code, target_count)
-
-        for index in range(fallback_limit):
-            fallback_rows.append(
-                self._build_row(
-                    text_original=self._fallback_sentence(language_code, self.source_name, domain, index + 1),
-                    source=self.source_name,
-                    source_url=f"https://reddit.com/r/sample/comments/{language_code}_{index + 1}",
-                    source_subreddit="sample",
-                    language_code=language_code,
-                    domain=domain,
-                )
-            )
-
-        return [row for row in fallback_rows if self._is_valid_text(row["text_original"], min_words)]
