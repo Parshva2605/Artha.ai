@@ -12,27 +12,27 @@ except ModuleNotFoundError:  # pragma: no cover
 
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+redis_client = None
+
+if redis is not None:
+	if redis_url.startswith("rediss://"):
+		redis_client = redis.from_url(
+			redis_url,
+			ssl_cert_reqs=None,
+			decode_responses=True,
+		)
+	else:
+		redis_client = redis.from_url(
+			redis_url,
+			decode_responses=True,
+		)
 
 
 _STATUS_TTL_SECONDS = 24 * 60 * 60
 
 
 def _get_redis_client():
-	if redis is None:
-		return None
-	try:
-		if redis_url.startswith("rediss://"):
-			return redis.from_url(
-				redis_url,
-				ssl_cert_reqs=None,
-				decode_responses=True,
-			)
-		return redis.from_url(
-			redis_url,
-			decode_responses=True,
-		)
-	except Exception:  # noqa: BLE001
-		return None
+	return redis_client
 
 
 def set_job_status(job_id, status_dict) -> None:
