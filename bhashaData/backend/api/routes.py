@@ -246,8 +246,8 @@ async def generate_dataset(
     # to an in-process thread so long-running work is detached from request lifecycle.
     try:
         redis_url = os.getenv("REDIS_URL", "NOT SET")
-        print(f"[BACKEND] Sending task to Redis: {redis_url[:40]}")
-        print(f"[BACKEND] Task queue: dataset_generation")
+        logger.warning("[BACKEND] Sending task to Redis: %s", redis_url[:40])
+        logger.warning("[BACKEND] Task queue: dataset_generation")
         generate_dataset_task.apply_async(args=[job_id, request.model_dump()], task_id=job_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Celery queue unavailable for job %s: %s", job_id, exc)
