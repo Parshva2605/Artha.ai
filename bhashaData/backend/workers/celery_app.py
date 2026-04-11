@@ -27,3 +27,9 @@ celery_app.conf.update(
 )
 
 celery_app.autodiscover_tasks(["backend.workers"])
+
+# Also add explicit import
+from backend.workers import dataset_job  # noqa
+
+# Force task registration
+import backend.workers.dataset_job  # noqa: F401

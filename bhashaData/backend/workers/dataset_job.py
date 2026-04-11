@@ -222,7 +222,7 @@ def _quality_report_to_dict(quality_report: Any) -> dict[str, Any]:
 
 
 @celery_app.task(name="generate_dataset")
-def generate_dataset_task(job_id: str, request: dict) -> dict[str, Any]:
+def generate_dataset_task(job_id: str, request: dict):
     db = SessionLocal()
     request_payload = dict(request or {})
     languages = [str(language_code) for language_code in request_payload.get("languages", [])]
