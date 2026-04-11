@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 from datetime import datetime, timezone
 from typing import Any
 
@@ -12,7 +13,7 @@ _redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 if _redis_url.startswith("rediss://"):
     redis_client = redis_lib.from_url(
         _redis_url,
-        ssl_cert_reqs=None,
+		ssl_cert_reqs=ssl.CERT_NONE,
         decode_responses=True
     )
 else:

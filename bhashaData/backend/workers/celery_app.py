@@ -1,3 +1,5 @@
+# Redis SSL fix v3 - 2026-04-11
+import ssl
 import os
 from celery import Celery
 from kombu import Queue
@@ -9,8 +11,12 @@ celery_app = Celery("artha_ai")
 celery_app.conf.update(
     broker_url=redis_url,
     result_backend=redis_url,
-    broker_use_ssl={"ssl_cert_reqs": None} if redis_url.startswith("rediss://") else None,
-    redis_backend_use_ssl={"ssl_cert_reqs": None} if redis_url.startswith("rediss://") else None,
+    broker_use_ssl={
+        "ssl_cert_reqs": ssl.CERT_NONE
+    } if redis_url.startswith("rediss://") else None,
+    redis_backend_use_ssl={
+        "ssl_cert_reqs": ssl.CERT_NONE
+    } if redis_url.startswith("rediss://") else None,
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
