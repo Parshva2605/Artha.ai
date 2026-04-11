@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any
-
-from backend.config.settings import settings
 
 try:
 	import redis
 except ModuleNotFoundError:  # pragma: no cover
 	redis = None
+
+
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 
 _STATUS_TTL_SECONDS = 24 * 60 * 60
@@ -19,7 +21,16 @@ def _get_redis_client():
 	if redis is None:
 		return None
 	try:
-		return redis.from_url(settings.redis_url, decode_responses=True)
+		if redis_url.startswith("rediss://"):
+			return redis.from_url(
+				redis_url,
+				ssl_cert_reqs=None,
+				decode_responses=True,
+			)
+		return redis.from_url(
+			redis_url,
+			decode_responses=True,
+		)
 	except Exception:  # noqa: BLE001
 		return None
 
