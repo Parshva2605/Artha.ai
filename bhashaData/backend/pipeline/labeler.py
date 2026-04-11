@@ -591,9 +591,17 @@ def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelRe
 
 def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 	try:
+		groq_key = os.getenv("GROQ_API_KEY")
+		groq_model = os.getenv("GROQ_MODEL")
+		print(f"[LABELER] GROQ_API_KEY present: {bool(groq_key)}")
+		print(f"[LABELER] GROQ_MODEL: {groq_model}")
+		print("[LABELER] Trying Groq first...")
+
 		groq_result = label_with_groq(text, label_type, language_name)
 		if groq_result is not None:
+			print(f"[LABELER] Groq succeeded: {groq_result.label}")
 			return groq_result
+		print("[LABELER] Groq failed, trying next...")
 
 		openrouter_result = label_with_openrouter(text, label_type, language_name)
 		if openrouter_result is not None:
