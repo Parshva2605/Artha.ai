@@ -77,6 +77,7 @@ class _RateLimiter:
 
 CLAUDE_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 OPENAI_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
+GROQ_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 OPENROUTER_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 OLLAMA_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 
@@ -90,6 +91,10 @@ _CLAUDE_DISABLE_LOCK = threading.Lock()
 _OPENAI_DISABLED = False
 _OPENAI_DISABLE_REASON = ""
 _OPENAI_DISABLE_LOCK = threading.Lock()
+
+_GROQ_DISABLED = False
+_GROQ_DISABLE_REASON = ""
+_GROQ_DISABLE_LOCK = threading.Lock()
 
 _OPENROUTER_DISABLED = False
 _OPENROUTER_DISABLE_REASON = ""
@@ -125,6 +130,18 @@ def _disable_openai(reason: str) -> None:
 def _is_openai_disabled() -> bool:
 	with _OPENAI_DISABLE_LOCK:
 		return _OPENAI_DISABLED
+
+
+def _disable_groq(reason: str) -> None:
+	global _GROQ_DISABLED, _GROQ_DISABLE_REASON
+	with _GROQ_DISABLE_LOCK:
+		_GROQ_DISABLED = True
+		_GROQ_DISABLE_REASON = reason
+
+
+def _is_groq_disabled() -> bool:
+	with _GROQ_DISABLE_LOCK:
+		return _GROQ_DISABLED
 
 
 def _disable_openrouter(reason: str) -> None:
@@ -222,6 +239,7 @@ class LabelingResult:
 	labeled_rows: list[dict[str, Any]]
 	needs_review_rows: list[dict[str, Any]]
 	rejected_low_confidence: int
+	groq_count: int = 0
 	claude_count: int = 0
 	openai_count: int = 0
 	openrouter_count: int = 0
@@ -381,6 +399,64 @@ def label_with_openai(text: str, label_type: str, language_name: str) -> LabelRe
 		return None
 
 
+def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResult | None:
+	import requests
+
+	try:
+		if _is_groq_disabled():
+			return None
+
+		api_key = os.getenv("GROQ_API_KEY", "").strip() or os.getenv("groq", "").strip()
+		if not api_key:
+			return None
+		model = os.getenv("GROQ_MODEL", "llama3-8b-8192").strip() or "llama3-8b-8192"
+		timeout = min(15.0, float(os.getenv("GROQ_TIMEOUT", "15")))
+
+		prompt = build_prompt(label_type, text, language_name)
+
+		GROQ_RATE_LIMITER.wait()
+		response = requests.post(
+			"https://api.groq.com/openai/v1/chat/completions",
+			headers={
+				"Authorization": f"Bearer {api_key}",
+				"Content-Type": "application/json",
+			},
+			json={
+				"model": model,
+				"messages": [{"role": "user", "content": prompt}],
+				"max_tokens": 200,
+				"temperature": 0.1,
+			},
+			timeout=timeout,
+		)
+
+		if response.status_code >= 400:
+			payload_text = response.text[:500]
+			if response.status_code in {401, 402, 403, 404, 429} or _looks_like_non_retryable_provider_error(payload_text):
+				_disable_groq(payload_text)
+			return None
+
+		response.raise_for_status()
+		payload = response.json()
+		response_text = str(payload["choices"][0]["message"]["content"])
+		parsed = parse_llm_response(response_text, label_type)
+		if parsed is None:
+			return None
+		if parsed.confidence < 0.75:
+			return None
+
+		parsed.llm_used = "groq"
+		parsed.needs_review = False
+		return parsed
+	except requests.Timeout:
+		return None
+	except Exception as exc:  # noqa: BLE001
+		status_code = _exception_status_code(exc)
+		if status_code in {401, 402, 403, 404, 429} or _looks_like_non_retryable_provider_error(str(exc)):
+			_disable_groq(str(exc)[:400])
+		return None
+
+
 def label_with_openrouter(text: str, label_type: str, language_name: str) -> LabelResult | None:
 	import os
 	import requests
@@ -421,6 +497,9 @@ def label_with_openrouter(text: str, label_type: str, language_name: str) -> Lab
 
 			if response.status_code >= 400:
 				payload_text = response.text[:500]
+				if response.status_code == 429:
+					logger.warning("OpenRouter rate limited, skipping")
+					return None
 				if _is_non_retryable_openrouter_error(response.status_code, payload_text):
 					_disable_openrouter(payload_text)
 				return None
@@ -512,13 +591,9 @@ def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelRe
 
 def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 	try:
-		claude_result = label_with_claude(text, label_type, language_name)
-		if claude_result is not None:
-			return claude_result
-
-		openai_result = label_with_openai(text, label_type, language_name)
-		if openai_result is not None:
-			return openai_result
+		groq_result = label_with_groq(text, label_type, language_name)
+		if groq_result is not None:
+			return groq_result
 
 		openrouter_result = label_with_openrouter(text, label_type, language_name)
 		if openrouter_result is not None:
@@ -527,6 +602,14 @@ def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 		ollama_result = label_with_ollama(text, label_type, language_name)
 		if ollama_result is not None:
 			return ollama_result
+
+		claude_result = label_with_claude(text, label_type, language_name)
+		if claude_result is not None:
+			return claude_result
+
+		openai_result = label_with_openai(text, label_type, language_name)
+		if openai_result is not None:
+			return openai_result
 	except Exception:  # noqa: BLE001
 		pass
 
@@ -693,6 +776,7 @@ def run_labeling_pipeline(
 	needs_review_rows: list[dict[str, Any]] = []
 
 	rejected_low_confidence = 0
+	groq_count = 0
 	claude_count = 0
 	openai_count = 0
 	openrouter_count = 0
@@ -749,6 +833,8 @@ def run_labeling_pipeline(
 			llm_used = str(updated_row.get("llm_used", ""))
 			if llm_used == "claude":
 				claude_count += 1
+			elif llm_used == "groq":
+				groq_count += 1
 			elif llm_used == "openrouter":
 				openrouter_count += 1
 			elif llm_used == "openai":
@@ -767,6 +853,7 @@ def run_labeling_pipeline(
 		labeled_rows=labeled_rows,
 		needs_review_rows=needs_review_rows,
 		rejected_low_confidence=rejected_low_confidence,
+		groq_count=groq_count,
 		claude_count=claude_count,
 		openai_count=openai_count,
 		openrouter_count=openrouter_count,
