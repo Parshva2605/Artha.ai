@@ -9,7 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from backend.api.models import (
     GenerateDatasetRequest,
@@ -328,24 +328,19 @@ def download_dataset(job_id: str, format: str, db=Depends(get_db)):
         raise HTTPException(status_code=400, detail="Unsupported download format")
 
     job = get_job(db, job_id)
-    if job is None or job.status != "complete" or not job.output_dir:
+    if job is None or job.status != "complete":
         raise HTTPException(status_code=404, detail="Dataset not available")
 
-    output_dir = Path(job.output_dir)
-    if format == "huggingface":
-        hf_dir = output_dir / "huggingface"
-        if not hf_dir.exists() or not hf_dir.is_dir():
-            raise HTTPException(status_code=404, detail="HuggingFace dataset not found")
-        archive_base = output_dir / "huggingface_export"
-        archive_path = Path(f"{archive_base}.zip")
-        if not archive_path.exists():
-            shutil.make_archive(str(archive_base), "zip", root_dir=hf_dir)
-        return FileResponse(str(archive_path), filename=f"{job_id}-huggingface.zip")
+    try:
+        exported_formats = json.loads(job.exported_formats or "{}")
+    except json.JSONDecodeError:
+        exported_formats = {}
 
-    file_path = output_dir / f"data.{SUPPORTED_DOWNLOAD_FORMATS[format]}"
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Export file not found")
-    return FileResponse(str(file_path), filename=file_path.name)
+    url = exported_formats.get(format)
+    if not url:
+        raise HTTPException(status_code=404, detail="Format not found")
+
+    return RedirectResponse(url=url)
 
 
 @router.get("/quality-report/{job_id}")

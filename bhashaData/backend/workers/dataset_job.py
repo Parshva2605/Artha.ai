@@ -434,7 +434,7 @@ def generate_dataset_task(job_id: str, request: dict):
             "complete",
             result_summary=_quality_report_to_dict(quality_report),
             output_dir=export_result.output_dir,
-            exported_formats=export_result.formats_succeeded,
+            exported_formats=export_result.exported_files,
         )
         report_progress(job_id, "complete", 100, "Complete", per_language_status, eta_seconds=0)
         logger.info(

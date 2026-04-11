@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -9,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import requests
 
 try:
 	from backend.config.languages import get_config_by_code, is_supported_language
@@ -350,6 +353,52 @@ def save_metadata(metadata: dict, output_path: str) -> str:
 	return str(path)
 
 
+def upload_to_supabase(
+	local_path: str,
+	job_id: str,
+	filename: str,
+) -> str | None:
+	supabase_url = os.getenv("SUPABASE_URL")
+	service_key = os.getenv("SUPABASE_SERVICE_KEY")
+
+	if not supabase_url or not service_key:
+		return None
+
+	try:
+		path = Path(local_path)
+		if path.is_dir():
+			archive_base = path.parent / path.name
+			local_path = shutil.make_archive(str(archive_base), "zip", root_dir=str(path))
+			path = Path(local_path)
+			if not filename.lower().endswith(".zip"):
+				filename = f"{Path(filename).stem}.zip"
+
+		with path.open("rb") as file_handle:
+			file_data = file_handle.read()
+
+		upload_path = f"{job_id}/{filename}"
+		url = f"{supabase_url}/storage/v1/object/datasets/{upload_path}"
+
+		response = requests.post(
+			url,
+			headers={
+				"Authorization": f"Bearer {service_key}",
+				"Content-Type": "application/octet-stream",
+				"x-upsert": "true",
+			},
+			data=file_data,
+			timeout=60,
+		)
+
+		if response.status_code in [200, 201]:
+			public_url = f"{supabase_url}/storage/v1/object/public/datasets/{upload_path}"
+			return public_url
+		return None
+	except Exception as e:
+		print(f"Supabase upload error: {e}")
+		return None
+
+
 def _export_with_format(format_name: str, rows: list[dict], output_path: str) -> str:
 	if format_name == "csv":
 		return export_csv(rows, output_path)
@@ -420,7 +469,11 @@ def run_export_pipeline(
 				format_name = futures[future]
 				try:
 					result_path = future.result()
-					exported_files[format_name] = result_path
+					filename = Path(result_path).name
+					if Path(result_path).is_dir():
+						filename = f"{Path(result_path).name}.zip"
+					public_url = upload_to_supabase(result_path, job_id, filename)
+					exported_files[format_name] = public_url or result_path
 					formats_succeeded.append(format_name)
 				except Exception as exc:  # noqa: BLE001
 					logger.warning("Failed to export %s format for job %s: %s", format_name, job_id, exc)
