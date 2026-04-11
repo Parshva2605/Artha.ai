@@ -2,33 +2,20 @@ from __future__ import annotations
 
 import json
 import os
-import ssl
 from datetime import datetime, timezone
 from typing import Any
 
 import redis as redis_lib
 
-_redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+_redis_url = os.getenv(
+	"REDIS_URL",
+	"redis://localhost:6379"
+)
 
-# Remove ssl_cert_reqs from URL if present
-# to avoid conflicts with redis-py SSL handling
-_clean_url = _redis_url.split("?")[0]
-
-if _clean_url.startswith("rediss://"):
-    redis_client = redis_lib.from_url(
-		_clean_url,
-		ssl_cert_reqs=ssl.CERT_NONE,
-		decode_responses=True,
-		socket_connect_timeout=5,
-		socket_timeout=5
-    )
-else:
-    redis_client = redis_lib.from_url(
-		_clean_url,
-		decode_responses=True,
-		socket_connect_timeout=5,
-		socket_timeout=5
-    )
+redis_client = redis_lib.from_url(
+	_redis_url,
+	decode_responses=True
+)
 
 
 _STATUS_TTL_SECONDS = 24 * 60 * 60
