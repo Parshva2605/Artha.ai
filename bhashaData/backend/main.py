@@ -1,4 +1,4 @@
-# Artha AI Backend v2.1 - Supabase storage
+# Artha AI Backend v2.2 - 2026-04-13
 
 import asyncio
 import logging

@@ -409,3 +409,12 @@ def health_check() -> HealthResponse:
         redis_connected=True,
         database_connected=True,
     )
+
+
+@router.get("/version")
+def get_version():
+    return {
+        "version": "2.2",
+        "download": "supabase-redirect",
+        "timestamp": "2026-04-13",
+    }
