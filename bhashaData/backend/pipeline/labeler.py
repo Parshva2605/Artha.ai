@@ -461,9 +461,12 @@ def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResu
 		timeout = 10
 
 		prompt = build_prompt(label_type, text, language_name)
+		# Truncate text to max 500 characters to avoid 413 errors.
+		text = text[:500] if len(text) > 500 else text
+		prompt = build_prompt(label_type, text, language_name)
 
 		GROQ_RATE_LIMITER.wait()
-		time.sleep(1.0)
+		time.sleep(2.0)
 		response = requests.post(
 			"https://api.groq.com/openai/v1/chat/completions",
 			headers={
@@ -855,7 +858,7 @@ def run_labeling_pipeline(
 
 	total = len(rows)
 	all_llms_unavailable_logged = False
-	batch_size = 10
+	batch_size = 5
 
 	for i in range(0, total, batch_size):
 		batch = rows[i:i + batch_size]
@@ -922,7 +925,7 @@ def run_labeling_pipeline(
 				all_llms_unavailable_logged = True
 
 		if i + batch_size < total:
-			time.sleep(2.0)
+			time.sleep(3.0)
 
 		if progress_callback is not None:
 			progress_callback(min(i + batch_size, total), total)
