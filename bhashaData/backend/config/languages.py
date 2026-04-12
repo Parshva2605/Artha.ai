@@ -21,11 +21,17 @@ LANGUAGE_CONFIGS: dict[str, dict[str, Any]] = {
         "code": "en",
         "name": "English",
         "script": "latin",
-        "subreddits": ["india", "worldnews", "technology", "food", "health"],
+        "subreddits": [],
         "youtube_search_terms": [
             "india news english",
             "indian tech review",
             "india entertainment",
+            "app review english",
+            "product review",
+            "technology review",
+            "movie review english",
+            "food review india",
+            "cricket highlights",
         ],
         "news_sites": [
             "timesofindia.com",
@@ -43,12 +49,18 @@ LANGUAGE_CONFIGS: dict[str, dict[str, Any]] = {
         "code": "hi",
         "name": "Hindi",
         "script": "devanagari",
-        "subreddits": ["india", "bollywood", "cricket", "delhi", "mumbai", "hindi", "indiasocial"],
+        "subreddits": [],
         "youtube_search_terms": [
             "hindi news",
             "bollywood latest",
             "cricket hindi commentary",
             "hindi entertainment",
+            "bollywood news",
+            "cricket hindi",
+            "hindi comedy",
+            "india news hindi",
+            "hindi movie review",
+            "hindi technology",
         ],
         "news_sites": ["bhaskar.com", "aajtak.in", "ndtv.in", "jagran.com", "amarujala.com"],
         "play_store_lang_code": "hi",
@@ -61,7 +73,7 @@ LANGUAGE_CONFIGS: dict[str, dict[str, Any]] = {
         "code": "gu",
         "name": "Gujarati",
         "script": "gujarati",
-        "subreddits": ["gujarat", "ahmedabad", "surat", "gujarati", "india", "bollywood"],
+        "subreddits": [],
         "youtube_search_terms": [
             "gujarati news",
             "vtv gujarati",
@@ -71,6 +83,9 @@ LANGUAGE_CONFIGS: dict[str, dict[str, Any]] = {
             "gujarat news today",
             "gujarati serial",
             "ahmedabad vlog",
+            "gujarat news",
+            "gujarati natak",
+            "gujarati song",
         ],
         "news_sites": [
             "divyabhaskar.co.in",
@@ -90,7 +105,7 @@ LANGUAGE_CONFIGS: dict[str, dict[str, Any]] = {
         "code": "mr",
         "name": "Marathi",
         "script": "devanagari",
-        "subreddits": ["marathi", "pune", "mumbai", "nagpur", "india"],
+        "subreddits": [],
         "youtube_search_terms": ["marathi news", "tv9 marathi", "zee 24 taas", "marathi entertainment"],
         "news_sites": [
             "loksatta.com",
@@ -108,7 +123,7 @@ LANGUAGE_CONFIGS: dict[str, dict[str, Any]] = {
         "code": "ta",
         "name": "Tamil",
         "script": "tamil",
-        "subreddits": ["tamil", "Chennai", "kollywood", "tamilnadu", "india"],
+        "subreddits": [],
         "youtube_search_terms": [
             "tamil news",
             "puthiya thalaimurai",
@@ -139,8 +154,8 @@ def validate_all_configs() -> None:
         if not isinstance(code, str) or not code.strip():
             raise ValueError(f"Language '{language_key}' has invalid field 'code': must be a non-empty string")
 
-        if not isinstance(config["subreddits"], list) or len(config["subreddits"]) == 0:
-            raise ValueError(f"Language '{language_key}' has invalid field 'subreddits': must be a non-empty list")
+        if not isinstance(config["subreddits"], list):
+            raise ValueError(f"Language '{language_key}' has invalid field 'subreddits': must be a list")
 
         if not isinstance(config["news_sites"], list) or len(config["news_sites"]) == 0:
             raise ValueError(f"Language '{language_key}' has invalid field 'news_sites': must be a non-empty list")

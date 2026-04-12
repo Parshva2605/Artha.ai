@@ -7,7 +7,6 @@ from typing import Callable, Any
 from .base import ScraperResult
 from .google_play import GooglePlayScraper
 from .news import NewsScraper
-from .reddit import RedditScraper
 from .youtube import YoutubeScraper
 
 
@@ -27,10 +26,9 @@ def run_scrapers_for_language(
     target_count: int,
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> OrchestratorResult:
-    effective_target = target_count * 5 if language_config.get("code") == "gu" else target_count * 3
+    effective_target = target_count * 5
 
     scrapers = [
-        RedditScraper(),
         YoutubeScraper(),
         GooglePlayScraper(),
         NewsScraper(),
