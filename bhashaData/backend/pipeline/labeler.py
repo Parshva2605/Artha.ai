@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import itertools
 import logging
 import os
 import re
@@ -107,6 +108,8 @@ _OLLAMA_DISABLED = False
 _OLLAMA_DISABLE_REASON = ""
 _OLLAMA_DISABLE_LOCK = threading.Lock()
 
+_llm_cycle = None
+
 
 def _disable_claude(reason: str) -> None:
 	global _CLAUDE_DISABLED, _CLAUDE_DISABLE_REASON
@@ -166,6 +169,22 @@ def _disable_ollama(reason: str) -> None:
 def _is_ollama_disabled() -> bool:
 	with _OLLAMA_DISABLE_LOCK:
 		return _OLLAMA_DISABLED
+
+
+def get_next_llm() -> str:
+	global _llm_cycle
+	available: list[str] = []
+	if os.getenv("GROQ_API_KEY"):
+		available.append("groq")
+	if os.getenv("OPENROUTER_API_KEY"):
+		available.append("openrouter")
+	if os.getenv("OLLAMA_API_KEY"):
+		available.append("ollama")
+	if not available:
+		available = ["groq"]
+	if _llm_cycle is None:
+		_llm_cycle = itertools.cycle(available)
+	return str(next(_llm_cycle))
 
 
 def _is_non_retryable_ollama_error(status_code: int, payload_text: str) -> bool:
@@ -610,40 +629,47 @@ def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelRe
 
 def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 	try:
-		groq_key = os.getenv("GROQ_API_KEY")
-		groq_model = os.getenv("GROQ_MODEL")
-		print(f"[LABELER] GROQ_API_KEY present: {bool(groq_key)}")
-		print(f"[LABELER] GROQ_MODEL: {groq_model}")
-		print("[LABELER] Trying Groq first...")
+		primary = get_next_llm()
 
-		groq_result = label_with_groq(text, label_type, language_name)
-		if groq_result is not None:
-			print(f"[LABELER] Groq succeeded: {groq_result.label}")
-			return groq_result
-		print("[LABELER] Groq failed, trying next...")
+		if primary == "groq":
+			result = label_with_groq(text, label_type, language_name)
+			if result is not None:
+				return result
+			result = label_with_openrouter(text, label_type, language_name)
+			if result is not None:
+				return result
+			result = label_with_ollama(text, label_type, language_name)
+			if result is not None:
+				return result
 
-		openrouter_result = label_with_openrouter(text, label_type, language_name)
-		if openrouter_result is not None:
-			return openrouter_result
+		elif primary == "openrouter":
+			result = label_with_openrouter(text, label_type, language_name)
+			if result is not None:
+				return result
+			result = label_with_groq(text, label_type, language_name)
+			if result is not None:
+				return result
+			result = label_with_ollama(text, label_type, language_name)
+			if result is not None:
+				return result
 
-		ollama_result = label_with_ollama(text, label_type, language_name)
-		if ollama_result is not None:
-			return ollama_result
-
-		claude_result = label_with_claude(text, label_type, language_name)
-		if claude_result is not None:
-			return claude_result
-
-		openai_result = label_with_openai(text, label_type, language_name)
-		if openai_result is not None:
-			return openai_result
+		elif primary == "ollama":
+			result = label_with_ollama(text, label_type, language_name)
+			if result is not None:
+				return result
+			result = label_with_groq(text, label_type, language_name)
+			if result is not None:
+				return result
+			result = label_with_openrouter(text, label_type, language_name)
+			if result is not None:
+				return result
 	except Exception:  # noqa: BLE001
 		pass
 
 	return LabelResult(
 		label="unknown",
 		confidence=0.0,
-		reason="All LLM providers failed and rule fallback disabled",
+		reason="All LLMs failed",
 		llm_used="needs_review",
 		needs_review=True,
 		label_type=(label_type or "").lower(),
@@ -812,18 +838,34 @@ def run_labeling_pipeline(
 
 	total = len(rows)
 	all_llms_unavailable_logged = False
-	for index, row in enumerate(rows, start=1):
-		updated_row: dict[str, Any] | None = None
+	batch_size = 10
 
-		backoffs = [2, 4, 8]
-		for attempt in range(0, len(backoffs) + 1):
-			try:
-				updated_row = label_row(row, label_type, language_config)
-				break
-			except Exception as labeling_error:  # noqa: BLE001
-				if _looks_like_rate_limit_error(str(labeling_error)) and attempt < len(backoffs):
-					time.sleep(backoffs[attempt])
-					continue
+	for i in range(0, total, batch_size):
+		batch = rows[i:i + batch_size]
+		for offset, row in enumerate(batch, start=1):
+			index = i + offset
+			updated_row: dict[str, Any] | None = None
+
+			backoffs = [2, 4, 8]
+			for attempt in range(0, len(backoffs) + 1):
+				try:
+					updated_row = label_row(row, label_type, language_config)
+					break
+				except Exception as labeling_error:  # noqa: BLE001
+					if _looks_like_rate_limit_error(str(labeling_error)) and attempt < len(backoffs):
+						time.sleep(backoffs[attempt])
+						continue
+					updated_row = dict(row)
+					updated_row["label_sentiment"] = None
+					updated_row["label_topic"] = None
+					updated_row["label_ner"] = None
+					updated_row["confidence"] = 0.0
+					updated_row["confidence_reason"] = "All LLMs failed or returned low confidence"
+					updated_row["llm_used"] = "needs_review"
+					updated_row["needs_review"] = True
+					break
+
+			if updated_row is None:
 				updated_row = dict(row)
 				updated_row["label_sentiment"] = None
 				updated_row["label_topic"] = None
@@ -832,49 +874,41 @@ def run_labeling_pipeline(
 				updated_row["confidence_reason"] = "All LLMs failed or returned low confidence"
 				updated_row["llm_used"] = "needs_review"
 				updated_row["needs_review"] = True
-				break
 
-		if updated_row is None:
-			updated_row = dict(row)
-			updated_row["label_sentiment"] = None
-			updated_row["label_topic"] = None
-			updated_row["label_ner"] = None
-			updated_row["confidence"] = 0.0
-			updated_row["confidence_reason"] = "All LLMs failed or returned low confidence"
-			updated_row["llm_used"] = "needs_review"
-			updated_row["needs_review"] = True
+			if bool(updated_row.get("needs_review", False)):
+				needs_review_rows.append(updated_row)
+				needs_review_count += 1
+				logger.warning(
+					"Labeling failed for row %s/%s: %s",
+					index,
+					total,
+					str(updated_row.get("confidence_reason", "LLM unavailable")),
+				)
+			elif float(updated_row.get("confidence", 0.0)) < 0.80:
+				rejected_low_confidence += 1
+			else:
+				labeled_rows.append(updated_row)
+				llm_used = str(updated_row.get("llm_used", ""))
+				if llm_used == "claude":
+					claude_count += 1
+				elif llm_used == "groq":
+					groq_count += 1
+				elif llm_used == "openrouter":
+					openrouter_count += 1
+				elif llm_used == "openai":
+					openai_count += 1
+				elif llm_used == "ollama":
+					ollama_count += 1
 
-		if bool(updated_row.get("needs_review", False)):
-			needs_review_rows.append(updated_row)
-			needs_review_count += 1
-			logger.warning(
-				"Labeling failed for row %s/%s: %s",
-				index,
-				total,
-				str(updated_row.get("confidence_reason", "LLM unavailable")),
-			)
-		elif float(updated_row.get("confidence", 0.0)) < 0.80:
-			rejected_low_confidence += 1
-		else:
-			labeled_rows.append(updated_row)
-			llm_used = str(updated_row.get("llm_used", ""))
-			if llm_used == "claude":
-				claude_count += 1
-			elif llm_used == "groq":
-				groq_count += 1
-			elif llm_used == "openrouter":
-				openrouter_count += 1
-			elif llm_used == "openai":
-				openai_count += 1
-			elif llm_used == "ollama":
-				ollama_count += 1
+			if index == 3 and needs_review_count == 3 and not all_llms_unavailable_logged:
+				logger.warning("All LLMs appear to be unavailable. Check API keys.")
+				all_llms_unavailable_logged = True
 
-		if index == 3 and needs_review_count == 3 and not all_llms_unavailable_logged:
-			logger.warning("All LLMs appear to be unavailable. Check API keys.")
-			all_llms_unavailable_logged = True
+		if i + batch_size < total:
+			time.sleep(2.0)
 
 		if progress_callback is not None:
-			progress_callback(index, total)
+			progress_callback(min(i + batch_size, total), total)
 
 	return LabelingResult(
 		labeled_rows=labeled_rows,

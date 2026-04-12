@@ -199,6 +199,23 @@ export function getDownloadUrl(jobId: string, format: ExportFormat): string {
   return `${API_BASE}/api/download/${jobId}/${format}`;
 }
 
+export async function hasDownloadUrl(jobId: string, format: ExportFormat = "csv"): Promise<boolean> {
+  try {
+    const response = await fetch(getDownloadUrl(jobId, format), {
+      method: "GET",
+      redirect: "manual",
+    });
+
+    if (response.type === "opaqueredirect") {
+      return true;
+    }
+
+    return response.status >= 300 && response.status < 400;
+  } catch {
+    return false;
+  }
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/api/health`);
