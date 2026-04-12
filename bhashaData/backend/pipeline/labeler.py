@@ -109,6 +109,7 @@ _OLLAMA_DISABLE_REASON = ""
 _OLLAMA_DISABLE_LOCK = threading.Lock()
 
 _llm_cycle = None
+_groq_key_cycle = None
 
 
 def _disable_claude(reason: str) -> None:
@@ -185,6 +186,33 @@ def get_next_llm() -> str:
 	if _llm_cycle is None:
 		_llm_cycle = itertools.cycle(available)
 	return str(next(_llm_cycle))
+
+
+def get_groq_keys() -> list[str]:
+	keys: list[str] = []
+	key1 = (os.getenv("GROQ_API_KEY") or "").strip()
+	if key1:
+		keys.append(key1)
+	key2 = (os.getenv("GROQ_API_KEY_2") or "").strip()
+	if key2:
+		keys.append(key2)
+	key3 = (os.getenv("GROQ_API_KEY_3") or "").strip()
+	if key3:
+		keys.append(key3)
+	legacy_key = (os.getenv("groq") or "").strip()
+	if legacy_key and legacy_key not in keys:
+		keys.append(legacy_key)
+	return keys
+
+
+def get_next_groq_key() -> str | None:
+	global _groq_key_cycle
+	keys = get_groq_keys()
+	if not keys:
+		return None
+	if _groq_key_cycle is None:
+		_groq_key_cycle = itertools.cycle(keys)
+	return str(next(_groq_key_cycle))
 
 
 def _is_non_retryable_ollama_error(status_code: int, payload_text: str) -> bool:
@@ -426,17 +454,16 @@ def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResu
 		if _is_groq_disabled():
 			return None
 
-		api_key = os.getenv("GROQ_API_KEY", "").strip() or os.getenv("groq", "").strip()
+		api_key = get_next_groq_key()
 		if not api_key:
 			return None
-		model = os.getenv("GROQ_MODEL", "llama3-8b-8192").strip() or "llama3-8b-8192"
+		model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant").strip() or "llama-3.1-8b-instant"
 		timeout = 10
 
 		prompt = build_prompt(label_type, text, language_name)
 
 		GROQ_RATE_LIMITER.wait()
-		import time
-		time.sleep(1.5)
+		time.sleep(1.0)
 		response = requests.post(
 			"https://api.groq.com/openai/v1/chat/completions",
 			headers={
@@ -452,16 +479,11 @@ def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResu
 			timeout=timeout,
 		)
 
-		if response.status_code >= 400:
-			payload_text = response.text[:500]
-			if response.status_code == 429:
-				print("[GROQ] Rate limited")
-				return None
-			if response.status_code != 200:
-				print(f"[GROQ] Status {response.status_code}: {response.text[:100]}")
-				return None
-			if response.status_code in {401, 402, 403, 404, 429} or _looks_like_non_retryable_provider_error(payload_text):
-				_disable_groq(payload_text)
+		if response.status_code == 429:
+			print("[GROQ] Key rate limited, will rotate next call")
+			return None
+		if response.status_code != 200:
+			print(f"[GROQ] Status {response.status_code}")
 			return None
 
 		response.raise_for_status()
@@ -483,12 +505,7 @@ def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResu
 		print(f"[GROQ] Connection error: {e}")
 		return None
 	except Exception as e:  # noqa: BLE001
-		import traceback
-		print(f"[GROQ ERROR] {type(e).__name__}: {e}")
-		print(f"[GROQ TRACE] {traceback.format_exc()[:200]}")
-		status_code = _exception_status_code(e)
-		if status_code in {401, 402, 403, 404, 429} or _looks_like_non_retryable_provider_error(str(e)):
-			_disable_groq(str(e)[:400])
+		print(f"[GROQ ERROR] {e}")
 		return None
 
 
