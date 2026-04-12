@@ -1,24 +1,37 @@
-from sqlalchemy import create_engine
+import os
+
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
-from sqlalchemy.pool import NullPool, QueuePool
 
-from backend.config.settings import settings
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
-engine_kwargs = {"future": True}
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+    )
+else:
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=3,
+        max_overflow=5,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        pool_timeout=30,
+        connect_args={
+            "connect_timeout": 10,
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+        },
+    )
 
-# Configure pooling based on database type
-if settings.database_url.startswith("postgresql"):
-    # Use NullPool for serverless/Railway deployments
-    engine_kwargs.update({
-        "poolclass": NullPool,
-    })
-elif settings.database_url.startswith("sqlite"):
-    engine_kwargs.update({
-        "connect_args": {"check_same_thread": False},
-    })
-
-engine = create_engine(settings.database_url, **engine_kwargs)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+)
 
 
 class Base(DeclarativeBase):
