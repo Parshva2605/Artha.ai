@@ -63,6 +63,7 @@ export interface QualityReport {
   openai_count: number;
   openrouter_count: number;
   ollama_count: number;
+  export_formats: ExportFormat[];
 }
 
 export interface DownloadFile {

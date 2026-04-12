@@ -378,7 +378,15 @@ def quality_report(job_id: str, db=Depends(get_db)):
     job = get_job(db, job_id)
     if job is None or job.status != "complete" or not job.result_summary:
         raise HTTPException(status_code=404, detail="Quality report not found")
-    return JSONResponse(content=json.loads(job.result_summary))
+    report_payload = json.loads(job.result_summary)
+
+    try:
+        exported_formats = json.loads(job.exported_formats or "{}")
+    except Exception:
+        exported_formats = {}
+
+    report_payload["export_formats"] = list(exported_formats.keys())
+    return JSONResponse(content=report_payload)
 
 
 @router.get("/debug-env")

@@ -175,6 +175,7 @@ export async function getQualityReport(jobId: string): Promise<QualityReport> {
     openai_count: number;
     openrouter_count: number;
     ollama_count: number;
+    export_formats?: ExportFormat[];
     balance_result?: { is_balanced?: boolean };
     is_balanced?: boolean;
   };
@@ -192,28 +193,12 @@ export async function getQualityReport(jobId: string): Promise<QualityReport> {
     openai_count: raw.openai_count,
     openrouter_count: raw.openrouter_count ?? raw.ollama_count,
     ollama_count: raw.ollama_count,
+    export_formats: raw.export_formats ?? ["csv"],
   };
 }
 
 export function getDownloadUrl(jobId: string, format: ExportFormat): string {
   return `${API_BASE}/api/download/${jobId}/${format}`;
-}
-
-export async function hasDownloadUrl(jobId: string, format: ExportFormat = "csv"): Promise<boolean> {
-  try {
-    const response = await fetch(getDownloadUrl(jobId, format), {
-      method: "GET",
-      redirect: "manual",
-    });
-
-    if (response.type === "opaqueredirect") {
-      return true;
-    }
-
-    return response.status >= 300 && response.status < 400;
-  } catch {
-    return false;
-  }
 }
 
 export async function checkHealth(): Promise<boolean> {

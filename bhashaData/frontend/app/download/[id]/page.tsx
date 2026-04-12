@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { ApiError, getQualityReport, hasDownloadUrl } from "../../../lib/api";
+import { ApiError, getQualityReport } from "../../../lib/api";
 import type { ExportFormat, QualityReport as QualityReportType } from "../../../lib/types";
 import { Button } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
 import DownloadCard from "../../../components/DownloadCard";
 import QualityReport from "../../../components/QualityReport";
 
-const exportFormats: ExportFormat[] = ["csv", "json", "excel", "parquet", "huggingface"];
+const defaultExportFormats: ExportFormat[] = ["csv"];
 
 function totalDistribution(report: QualityReportType): number {
   return Object.values(report.label_distribution).reduce((sum, value) => sum + value, 0);
@@ -27,13 +27,6 @@ export default function DownloadPage() {
     enabled: Boolean(jobId),
     retry: (failureCount, error) => error instanceof ApiError && error.status === 404 && failureCount < 10,
     retryDelay: 2000,
-  });
-
-  const downloadAvailabilityQuery = useQuery({
-    queryKey: ["download-availability", jobId],
-    queryFn: () => hasDownloadUrl(jobId, "csv"),
-    enabled: Boolean(jobId) && reportQuery.isSuccess,
-    retry: false,
   });
 
   if (reportQuery.isLoading) {
@@ -63,6 +56,7 @@ export default function DownloadPage() {
   }
 
   const report = reportQuery.data;
+  const exportFormats = report.export_formats?.length ? report.export_formats : defaultExportFormats;
   const distributionTotal = Math.max(1, totalDistribution(report));
 
   return (
@@ -127,15 +121,9 @@ export default function DownloadPage() {
       <Card className="mt-6 p-6">
         <p className="text-lg font-semibold text-slate-900">Download</p>
         <p className="mt-1 text-sm text-slate-600">Total labeled rows: {report.total_labeled}</p>
-        {downloadAvailabilityQuery.data === false ? (
-          <p className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-            This dataset was generated before our storage upgrade. Please generate a new dataset to download.
-          </p>
-        ) : (
-          <div className="mt-4">
-            <DownloadCard jobId={jobId} formats={exportFormats} />
-          </div>
-        )}
+        <div className="mt-4">
+          <DownloadCard jobId={jobId} formats={exportFormats} />
+        </div>
       </Card>
 
       <Card className="mt-6 p-6">
