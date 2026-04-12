@@ -26,7 +26,10 @@ def run_scrapers_for_language(
     target_count: int,
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> OrchestratorResult:
-    effective_target = target_count * 5
+    if language_config["code"] == "gu":
+        effective_target = target_count * 8
+    else:
+        effective_target = target_count * 5
 
     scrapers = [
         YoutubeScraper(),

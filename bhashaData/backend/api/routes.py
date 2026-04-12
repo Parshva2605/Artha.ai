@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy.orm import Session
 
 from backend.api.models import (
     GenerateDatasetRequest,
@@ -323,24 +324,53 @@ def job_status(job_id: str, db=Depends(get_db)) -> JobStatusResponse:
 
 
 @router.get("/download/{job_id}/{format}")
-def download_dataset(job_id: str, format: str, db=Depends(get_db)):
-    if format not in SUPPORTED_DOWNLOAD_FORMATS:
-        raise HTTPException(status_code=400, detail="Unsupported download format")
+def download_dataset(
+    job_id: str,
+    format: str,
+    db: Session = Depends(get_db)
+):
+    valid_formats = [
+        "csv", "json", "excel",
+        "parquet", "huggingface"
+    ]
+    if format not in valid_formats:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid format: {format}"
+        )
 
     job = get_job(db, job_id)
-    if job is None or job.status != "complete":
-        raise HTTPException(status_code=404, detail="Dataset not available")
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail="Job not found"
+        )
+    if job.status != "complete":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job not complete: {job.status}"
+        )
 
+    import json as json_module
     try:
-        exported_formats = json.loads(job.exported_formats or "{}")
-    except json.JSONDecodeError:
-        exported_formats = {}
+        formats = json_module.loads(
+            job.exported_formats or "{}"
+        )
+    except Exception:
+        formats = {}
 
-    url = exported_formats.get(format)
+    url = formats.get(format)
     if not url:
-        raise HTTPException(status_code=404, detail="Format not found")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Format {format} not available"
+        )
 
-    return RedirectResponse(url=url)
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(
+        url=url,
+        status_code=302
+    )
 
 
 @router.get("/quality-report/{job_id}")

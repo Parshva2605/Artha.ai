@@ -417,7 +417,7 @@ def label_with_groq(text: str, label_type: str, language_name: str) -> LabelResu
 
 		GROQ_RATE_LIMITER.wait()
 		import time
-		time.sleep(0.3)
+		time.sleep(1.5)
 		response = requests.post(
 			"https://api.groq.com/openai/v1/chat/completions",
 			headers={

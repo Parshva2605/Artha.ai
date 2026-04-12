@@ -97,8 +97,8 @@ LANGUAGE_CONFIGS: dict[str, dict[str, Any]] = {
         ],
         "play_store_lang_code": "gu",
         "llm_prompt_instruction": "Label this Gujarati text only using the allowed label set and return strict JSON with label, confidence, and reason.",
-        "min_word_count": 4,
-        "quality_threshold": 0.82,
+        "min_word_count": 3,
+        "quality_threshold": 0.75,
         "is_benchmark_language": False,
     },
     "mr": {
