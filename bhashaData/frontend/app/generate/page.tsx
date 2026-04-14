@@ -46,7 +46,7 @@ export default function GeneratePage() {
     languages: [],
     domain: "social_media",
     label_type: "sentiment",
-    quantity_per_language: 500,
+    quantity_per_language: 100,
     export_formats: ["csv"],
     email: "",
   });
@@ -77,8 +77,8 @@ export default function GeneratePage() {
       return "Please select a label type";
     }
     if (index === 3) {
-      if (form.quantity_per_language < 100 || form.quantity_per_language > 5000) {
-        return "Quantity must be between 100 and 5000";
+      if (form.quantity_per_language < 100 || form.quantity_per_language > 300) {
+        return "Quantity must be between 100 and 300";
       }
       if (form.export_formats.length < 1) {
         return "Please select at least one export format";
@@ -238,7 +238,7 @@ export default function GeneratePage() {
                   className="mt-2 w-full"
                   type="range"
                   min={100}
-                  max={5000}
+                  max={300}
                   step={100}
                   value={form.quantity_per_language}
                   onChange={(event) =>
@@ -246,6 +246,9 @@ export default function GeneratePage() {
                   }
                 />
                 <p className="mt-2 text-sm text-slate-600">Estimated time: ~{estimatedMinutes} minutes</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Demo limit: 300 rows per language. Full access coming soon.
+                </p>
               </div>
 
               <div>

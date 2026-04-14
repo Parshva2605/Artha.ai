@@ -17,7 +17,12 @@ class GenerateDatasetRequest(BaseModel):
     languages: list[str] = Field(min_length=1, max_length=5)
     domain: str
     label_type: str
-    quantity_per_language: int = Field(ge=100, le=5000)
+    quantity_per_language: int = Field(
+        default=100,
+        ge=100,
+        le=300,
+        description="Number of rows per language (demo limit: 300)",
+    )
     export_formats: list[str] = Field(min_length=1)
     email: str | None = None
 

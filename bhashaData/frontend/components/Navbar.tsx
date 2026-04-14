@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { isLoggedIn, removeToken, getToken } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/api";
 import { useEffect, useState } from "react";
@@ -12,33 +12,48 @@ interface User {
 }
 
 export default function Navbar() {
+  const pathname = usePathname();
   const router = useRouter();
   const [loggedIn, setLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function checkAuth() {
-      if (isLoggedIn()) {
-        try {
-          const userResponse = await getCurrentUser();
-          setUser({
-            email: userResponse.email,
-            full_name: userResponse.full_name,
-          });
-          setLoggedIn(true);
-        } catch {
-          // Token invalid, clear it
-          removeToken();
-          setLoggedIn(false);
-        }
-      } else {
+    async function syncAuthState() {
+      const token = getToken();
+
+      if (!token) {
+        setUser(null);
         setLoggedIn(false);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        const userResponse = await getCurrentUser();
+        setUser({
+          email: userResponse.email,
+          full_name: userResponse.full_name,
+        });
+        setLoggedIn(true);
+      } catch {
+        removeToken();
+        setUser(null);
+        setLoggedIn(false);
+      } finally {
+        setLoading(false);
+      }
     }
 
-    checkAuth();
+    syncAuthState();
+  }, [pathname]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLoggedIn(isLoggedIn());
+    }, 2000);
+
+    return () => clearInterval(interval);
   }, []);
 
   function handleSignOut() {
@@ -55,8 +70,13 @@ export default function Navbar() {
   return (
     <nav className="bg-white shadow-md">
       <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <Link href="/" className="text-2xl font-bold text-orange-600">
-          Artha AI
+        <Link href="/" className="text-orange-600">
+          <span className="flex items-center gap-2">
+            <span className="font-bold text-xl">Artha AI</span>
+            <span className="bg-[#E8690A] text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+              BETA
+            </span>
+          </span>
         </Link>
 
         <div className="flex items-center gap-6">
