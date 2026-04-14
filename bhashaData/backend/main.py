@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api.routes import router as api_router
 from backend.database import models  # noqa: F401
 from backend.database.db import Base, engine
-from backend.config.settings import settings
 
 
 logger = logging.getLogger(__name__)
@@ -21,25 +20,22 @@ app = FastAPI(title="Artha AI", version="1.0.0")
 allow_origins = [
     "http://localhost:3000",
     "http://localhost:3001",
+	"https://artha-ai.dev",
+	"https://www.artha-ai.dev",
+	os.getenv("FRONTEND_URL", ""),
+	"https://*.vercel.app",
 ]
-
-# Add production frontend URL if provided
-if settings.frontend_url and settings.frontend_url not in allow_origins:
-    allow_origins.append(settings.frontend_url)
-
-# Add Vercel deployments
-allow_origins.append("https://*.vercel.app")
 
 # Filter out empty strings
 allow_origins = [origin for origin in allow_origins if origin]
 
 app.add_middleware(
-	CORSMiddleware,
-	allow_origins=allow_origins,
-	allow_origin_regex=r"https://.*\.vercel\.app",
-	allow_credentials=True,
-	allow_methods=["*"],
-	allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=allow_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
