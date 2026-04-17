@@ -80,6 +80,15 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-6">
+          <Link href="/#how-it-works" className="text-sm font-medium text-gray-700 hover:text-orange-600 transition">
+            How it works
+          </Link>
+          <Link
+            href="/custom-dataset"
+            className="text-sm font-medium text-[#E8690A] border border-[#E8690A] rounded-full px-4 py-1.5 hover:bg-[#E8690A] hover:text-white transition-all"
+          >
+            Custom Dataset
+          </Link>
           {loggedIn ? (
             <>
               <Link

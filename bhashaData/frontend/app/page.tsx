@@ -121,6 +121,72 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="border-y border-orange-100 bg-[linear-gradient(180deg,#FFF8F1_0%,#FFFFFF_100%)]">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#E8690A]">Beyond Text — We Build Any Dataset</p>
+          <div className="mt-3 max-w-3xl">
+            <h2 className="text-3xl font-bold tracking-tight text-[#0F172A] sm:text-4xl">Need a Custom Dataset? We Build It For You</h2>
+            <p className="mt-4 text-lg text-slate-600">Not just text. Any data. Any domain. Any format.</p>
+          </div>
+
+          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {[
+              {
+                icon: "🖼️",
+                title: "Computer Vision",
+                description: "Object detection, image classification, segmentation labels for any domain",
+                examples: "doors, windows, vehicles, medical imaging",
+              },
+              {
+                icon: "🎙️",
+                title: "Audio & Speech",
+                description: "Transcription, speaker identification, emotion detection in Indian languages",
+                examples: "call center data, voice commands",
+              },
+              {
+                icon: "📄",
+                title: "Document Intelligence",
+                description: "Invoice parsing, legal document classification, form field extraction",
+                examples: "GST invoices, court documents, forms",
+              },
+              {
+                icon: "🏥",
+                title: "Medical & Healthcare",
+                description: "Medical image labeling, clinical note classification, drug interaction datasets",
+                examples: "X-ray labels, prescription data",
+              },
+              {
+                icon: "🌾",
+                title: "Agriculture",
+                description: "Crop disease detection, yield prediction, soil classification datasets",
+                examples: "plant disease images, satellite data",
+              },
+              {
+                icon: "💬",
+                title: "Indian Languages",
+                description: "Sentiment, topic, NER in Hindi, Gujarati, Marathi, Tamil, English — automated",
+                examples: "app reviews, social media, news",
+              },
+            ].map((item) => (
+              <Card key={item.title} className="h-full border-orange-100 bg-white p-5 shadow-sm">
+                <p className="text-3xl">{item.icon}</p>
+                <p className="mt-4 text-lg font-semibold text-slate-900">{item.title}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>
+                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-[#E8690A]">Examples</p>
+                <p className="mt-1 text-sm text-slate-700">{item.examples}</p>
+              </Card>
+            ))}
+          </div>
+
+          <div className="mt-10 flex flex-col items-start gap-4">
+            <Button asChild className="bg-[#E8690A] text-white hover:bg-[#d45e07]">
+              <Link href="/custom-dataset">Request Custom Dataset →</Link>
+            </Button>
+            <p className="text-sm text-slate-600">Trusted by researchers and AI teams across India</p>
+          </div>
+        </div>
+      </section>
+
       <section id="languages" className="border-y border-slate-200 bg-slate-50">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold tracking-tight text-[#0F172A]">Supported Languages</h2>
