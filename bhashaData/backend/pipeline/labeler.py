@@ -85,6 +85,38 @@ OLLAMA_RATE_LIMITER = _RateLimiter(max_requests_per_second=10.0)
 logger = logging.getLogger(__name__)
 
 
+class LabelBalancer:
+	def __init__(self, max_per_label_percent: float = 0.55):
+		self.max_per_label_percent = max_per_label_percent
+		self.label_counts: dict[str, int] = {}
+		self.total_accepted: int = 0
+
+	def should_accept(
+		self,
+		label: str,
+		total_rows_to_label: int,
+	) -> bool:
+		max_allowed = int(total_rows_to_label * self.max_per_label_percent)
+		current_count = self.label_counts.get(label, 0)
+		return current_count < max_allowed
+
+	def record(self, label: str) -> None:
+		self.label_counts[label] = self.label_counts.get(label, 0) + 1
+		self.total_accepted += 1
+
+	def get_distribution(self) -> dict[str, int]:
+		return dict(self.label_counts)
+
+	def is_balanced(self) -> bool:
+		if self.total_accepted == 0:
+			return True
+		for count in self.label_counts.values():
+			pct = count / self.total_accepted
+			if pct > self.max_per_label_percent:
+				return False
+		return True
+
+
 _CLAUDE_DISABLED = False
 _CLAUDE_DISABLE_REASON = ""
 _CLAUDE_DISABLE_LOCK = threading.Lock()
@@ -286,6 +318,7 @@ class LabelingResult:
 	labeled_rows: list[dict[str, Any]]
 	needs_review_rows: list[dict[str, Any]]
 	rejected_low_confidence: int
+	rejected_for_balance: int = 0
 	groq_count: int = 0
 	claude_count: int = 0
 	openai_count: int = 0
@@ -845,10 +878,13 @@ def run_labeling_pipeline(
 	language_config: dict,
 	progress_callback: Callable[[int, int], None] | None = None,
 ) -> LabelingResult:
+	balancer = LabelBalancer(max_per_label_percent=0.55)
+	total_rows = len(rows)
 	labeled_rows: list[dict[str, Any]] = []
 	needs_review_rows: list[dict[str, Any]] = []
 
 	rejected_low_confidence = 0
+	rejected_for_balance = 0
 	groq_count = 0
 	claude_count = 0
 	openai_count = 0
@@ -907,18 +943,33 @@ def run_labeling_pipeline(
 			elif float(updated_row.get("confidence", 0.0)) < 0.80:
 				rejected_low_confidence += 1
 			else:
-				labeled_rows.append(updated_row)
-				llm_used = str(updated_row.get("llm_used", ""))
-				if llm_used == "claude":
-					claude_count += 1
-				elif llm_used == "groq":
-					groq_count += 1
-				elif llm_used == "openrouter":
-					openrouter_count += 1
-				elif llm_used == "openai":
-					openai_count += 1
-				elif llm_used == "ollama":
-					ollama_count += 1
+				normalized_label_type = (label_type or "").lower().strip()
+				if normalized_label_type == "sentiment":
+					label_val = str(updated_row.get("label_sentiment") or "")
+				elif normalized_label_type == "topic":
+					label_val = str(updated_row.get("label_topic") or "")
+				elif normalized_label_type == "ner":
+					label_val = str(updated_row.get("label_ner") or "")
+				else:
+					label_val = str(updated_row.get("label_sentiment") or "")
+
+				if balancer.should_accept(label_val, total_rows):
+					balancer.record(label_val)
+					labeled_rows.append(updated_row)
+					llm_used = str(updated_row.get("llm_used", ""))
+					if llm_used == "claude":
+						claude_count += 1
+					elif llm_used == "groq":
+						groq_count += 1
+					elif llm_used == "openrouter":
+						openrouter_count += 1
+					elif llm_used == "openai":
+						openai_count += 1
+					elif llm_used == "ollama":
+						ollama_count += 1
+				else:
+					rejected_for_balance += 1
+					continue
 
 			if index == 3 and needs_review_count == 3 and not all_llms_unavailable_logged:
 				logger.warning("All LLMs appear to be unavailable. Check API keys.")
@@ -934,6 +985,7 @@ def run_labeling_pipeline(
 		labeled_rows=labeled_rows,
 		needs_review_rows=needs_review_rows,
 		rejected_low_confidence=rejected_low_confidence,
+		rejected_for_balance=rejected_for_balance,
 		groq_count=groq_count,
 		claude_count=claude_count,
 		openai_count=openai_count,
