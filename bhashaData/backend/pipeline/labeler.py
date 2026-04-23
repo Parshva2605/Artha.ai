@@ -90,12 +90,14 @@ class LabelBalancer:
 		self.max_per_label_percent = max_per_label_percent
 		self.label_counts: dict[str, int] = {}
 		self.total_accepted: int = 0
+		self.total_rows_target: int = 0
 
 	def should_accept(
 		self,
 		label: str,
 		total_rows_to_label: int,
 	) -> bool:
+		self.total_rows_target = max(self.total_rows_target, int(total_rows_to_label))
 		max_allowed = int(total_rows_to_label * self.max_per_label_percent)
 		current_count = self.label_counts.get(label, 0)
 		return current_count < max_allowed
@@ -110,8 +112,9 @@ class LabelBalancer:
 	def is_balanced(self) -> bool:
 		if self.total_accepted == 0:
 			return True
+		denominator = self.total_rows_target if self.total_rows_target > 0 else self.total_accepted
 		for count in self.label_counts.values():
-			pct = count / self.total_accepted
+			pct = count / denominator
 			if pct > self.max_per_label_percent:
 				return False
 		return True
