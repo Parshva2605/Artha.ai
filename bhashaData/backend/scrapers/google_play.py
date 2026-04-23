@@ -21,6 +21,12 @@ DOMAIN_APPS: dict[str, list[str]] = {
         "com.truecaller",
         "com.whatsapp",
         "com.instagram.android",
+        "com.duolingo",
+        "com.google.android.apps.maps",
+        "com.spotify.music",
+        "com.canva.editor",
+        "com.grammarly.android",
+        "com.microsoft.teams",
     ],
     "social_media": [
         "com.instagram.android",
@@ -34,6 +40,12 @@ DOMAIN_APPS: dict[str, list[str]] = {
         "com.flipkart.android",
         "com.truecaller",
         "com.whatsapp",
+        "com.duolingo",
+        "com.google.android.apps.maps",
+        "com.spotify.music",
+        "com.canva.editor",
+        "com.grammarly.android",
+        "com.microsoft.teams",
     ],
     "news": [
         "com.ndtv.news",
@@ -47,6 +59,12 @@ DOMAIN_APPS: dict[str, list[str]] = {
         "com.truecaller",
         "com.whatsapp",
         "com.instagram.android",
+        "com.duolingo",
+        "com.google.android.apps.maps",
+        "com.spotify.music",
+        "com.canva.editor",
+        "com.grammarly.android",
+        "com.microsoft.teams",
     ],
 }
 
@@ -73,38 +91,53 @@ class GooglePlayScraper(BaseScraper):
                     break
 
                 try:
-                    review_batch, _continuation_token = reviews(
-                        app_id,
-                        lang=play_language,
-                        country=country_code,
-                        sort=Sort.NEWEST,
-                        count=max(10, target_count),
-                    )
+                    remaining = target_count - len(collected_rows)
+                    if remaining <= 0:
+                        break
 
-                    for review in review_batch:
+                    newest_count = max(5, remaining // 2)
+                    relevant_count = max(5, remaining - newest_count)
+                    sort_plan = [
+                        (Sort.NEWEST, newest_count),
+                        (Sort.MOST_RELEVANT, relevant_count),
+                    ]
+
+                    for sort_mode, sort_count in sort_plan:
                         if len(collected_rows) >= target_count:
                             break
 
-                        review_text = str(review.get("content", "")).strip()
-                        if not self._is_valid_text(review_text, min_words):
-                            continue
-
-                        star_rating = int(review.get("score", 0) or 0)
-                        rating_hint = self._rating_hint(star_rating)
-
-                        collected_rows.append(
-                            self._build_row(
-                                text_original=review_text,
-                                source=self.source_name,
-                                source_url=None,
-                                source_subreddit=None,
-                                language_code=language_code,
-                                domain=domain,
-                                app_id=app_id,
-                                star_rating=star_rating,
-                                rating_hint=rating_hint,
-                            )
+                        review_batch, _continuation_token = reviews(
+                            app_id,
+                            lang=play_language,
+                            country=country_code,
+                            sort=sort_mode,
+                            count=max(10, sort_count),
                         )
+
+                        for review in review_batch:
+                            if len(collected_rows) >= target_count:
+                                break
+
+                            review_text = str(review.get("content", "")).strip()
+                            if not self._is_valid_text(review_text, min_words):
+                                continue
+
+                            star_rating = int(review.get("score", 0) or 0)
+                            rating_hint = self._rating_hint(star_rating)
+
+                            collected_rows.append(
+                                self._build_row(
+                                    text_original=review_text,
+                                    source=self.source_name,
+                                    source_url=None,
+                                    source_subreddit=None,
+                                    language_code=language_code,
+                                    domain=domain,
+                                    app_id=app_id,
+                                    star_rating=star_rating,
+                                    rating_hint=rating_hint,
+                                )
+                            )
 
                 except Exception as app_error:  # noqa: BLE001
                     self._log_warning(f"Google Play app '{app_id}' failed: {app_error}")
