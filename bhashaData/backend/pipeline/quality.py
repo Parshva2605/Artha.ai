@@ -40,6 +40,7 @@ class QualityReport:
 	openrouter_count: int
 	ollama_count: int
 	needs_review_count: int
+	balance_improvement_note: str
 	shortfall_warnings: list[str]
 	low_quality_warning: str | None
 	is_low_quality: bool
@@ -115,13 +116,13 @@ def check_label_balance(distribution: dict, total_rows: int) -> BalanceResult:
 			dominant_percentage = percentage
 			dominant_label = label
 
-	if dominant_percentage > 60.0 and dominant_label is not None:
+	if dominant_percentage > 55.0 and dominant_label is not None:
 		return BalanceResult(
 			is_balanced=False,
 			dominant_label=dominant_label,
 			dominant_percentage=dominant_percentage,
 			warning_message=(
-				f"Label '{dominant_label}' dominates {dominant_percentage}% of rows, exceeding the 60% threshold."
+				f"Label '{dominant_label}' dominates {dominant_percentage}% of rows, exceeding the 55% threshold."
 			),
 		)
 
@@ -196,6 +197,21 @@ def check_low_quality(quality_score: float) -> str | None:
 	return None
 
 
+def suggest_balance_fix(distribution: dict, total: int) -> str | None:
+	if not distribution or total == 0:
+		return None
+	for label, count in distribution.items():
+		pct = count / total * 100
+		if pct > 55:
+			return (
+				f"Tip: '{label}' is {pct:.0f}% of your "
+				f"dataset. Try selecting 'Mixed' domain "
+				f"or adding more languages to improve "
+				f"label balance automatically."
+			)
+	return None
+
+
 def generate_quality_report(
 	labeled_rows: list[dict],
 	needs_review_rows: list[dict],
@@ -210,12 +226,29 @@ def generate_quality_report(
 	label_distribution = calculate_label_distribution(labeled_rows, label_type)
 	per_language_distribution = calculate_per_language_distribution(labeled_rows, language_codes, label_type)
 	balance_result = check_label_balance(label_distribution, len(labeled_rows))
+	if balance_result.is_balanced:
+		balance_improvement_note = (
+			"Label distribution is balanced. "
+			"No label exceeds 55% of total rows."
+		)
+	else:
+		dominant_label = balance_result.dominant_label or "unknown"
+		dominant_pct = balance_result.dominant_percentage
+		balance_improvement_note = (
+			f"Warning: {dominant_label} represents "
+			f"{dominant_pct:.1f}% of labels. "
+			f"Consider generating more data or "
+			f"using mixed domains."
+		)
 	benchmark_comparison = get_benchmark_comparison(per_language_quality)
 	delivered_per_language = {
 		language_code: len([row for row in labeled_rows if _get_language_field(row).lower() == language_code.lower()])
 		for language_code in language_codes
 	}
 	shortfall_warnings = check_shortfall(delivered_per_language, requested_per_language)
+	balance_tip = suggest_balance_fix(label_distribution, len(labeled_rows))
+	if balance_tip:
+		shortfall_warnings.append(balance_tip)
 
 	for language_code, requested in requested_per_language.items():
 		delivered = int(delivered_per_language.get(language_code, 0))
@@ -253,6 +286,7 @@ def generate_quality_report(
 		openrouter_count=getattr(labeling_result, "openrouter_count", getattr(labeling_result, "ollama_count", 0)),
 		ollama_count=getattr(labeling_result, "ollama_count", 0),
 		needs_review_count=getattr(labeling_result, "needs_review_count", 0),
+		balance_improvement_note=balance_improvement_note,
 		shortfall_warnings=shortfall_warnings,
 		low_quality_warning=low_quality_warning,
 		is_low_quality=overall_quality_score < 78,
