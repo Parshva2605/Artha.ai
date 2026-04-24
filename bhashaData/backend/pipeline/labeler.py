@@ -883,6 +883,12 @@ def run_labeling_pipeline(
 ) -> LabelingResult:
 	balancer = LabelBalancer(max_per_label_percent=0.55)
 	total_rows = len(rows)
+	logger.info(
+		"LabelBalancer integration check | enabled=%s | max_per_label_percent=%s | total_rows=%s",
+		True,
+		balancer.max_per_label_percent,
+		total_rows,
+	)
 	labeled_rows: list[dict[str, Any]] = []
 	needs_review_rows: list[dict[str, Any]] = []
 
@@ -983,6 +989,13 @@ def run_labeling_pipeline(
 
 		if progress_callback is not None:
 			progress_callback(min(i + batch_size, total), total)
+
+	logger.info(
+		"LabelBalancer distribution after labeling | distribution=%s | balanced=%s | rejected_for_balance=%s",
+		balancer.get_distribution(),
+		balancer.is_balanced(),
+		rejected_for_balance,
+	)
 
 	return LabelingResult(
 		labeled_rows=labeled_rows,
