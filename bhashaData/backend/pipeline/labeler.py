@@ -881,133 +881,115 @@ def run_labeling_pipeline(
 	language_config: dict,
 	progress_callback: Callable[[int, int], None] | None = None,
 ) -> LabelingResult:
-	balancer = LabelBalancer(max_per_label_percent=0.55)
-	total_rows = len(rows)
-	logger.info(
-		"LabelBalancer integration check | enabled=%s | max_per_label_percent=%s | total_rows=%s",
-		True,
-		balancer.max_per_label_percent,
-		total_rows,
-	)
-	labeled_rows: list[dict[str, Any]] = []
-	needs_review_rows: list[dict[str, Any]] = []
-
+	labeled_rows = []
+	needs_review_rows = []
 	rejected_low_confidence = 0
 	rejected_for_balance = 0
-	groq_count = 0
 	claude_count = 0
 	openai_count = 0
-	openrouter_count = 0
 	ollama_count = 0
+	groq_count = 0
+	openrouter_count = 0
 	needs_review_count = 0
 
-	total = len(rows)
-	all_llms_unavailable_logged = False
+	total_input = len(rows)
+
+	# Label counter for balance enforcement
+	label_counts: dict[str, int] = {}
+	MAX_LABEL_PERCENT = 0.50  # strict 50% cap
+
 	batch_size = 5
+	for batch_start in range(0, total_input, batch_size):
+		batch = rows[batch_start:batch_start + batch_size]
 
-	for i in range(0, total, batch_size):
-		batch = rows[i:i + batch_size]
-		for offset, row in enumerate(batch, start=1):
-			index = i + offset
-			updated_row: dict[str, Any] | None = None
+		for row in batch:
+			result = label_row(row, label_type, language_config)
 
-			backoffs = [2, 4, 8]
-			for attempt in range(0, len(backoffs) + 1):
-				try:
-					updated_row = label_row(row, label_type, language_config)
-					break
-				except Exception as labeling_error:  # noqa: BLE001
-					if _looks_like_rate_limit_error(str(labeling_error)) and attempt < len(backoffs):
-						time.sleep(backoffs[attempt])
-						continue
-					updated_row = dict(row)
-					updated_row["label_sentiment"] = None
-					updated_row["label_topic"] = None
-					updated_row["label_ner"] = None
-					updated_row["confidence"] = 0.0
-					updated_row["confidence_reason"] = "All LLMs failed or returned low confidence"
-					updated_row["llm_used"] = "needs_review"
-					updated_row["needs_review"] = True
-					break
-
-			if updated_row is None:
-				updated_row = dict(row)
-				updated_row["label_sentiment"] = None
-				updated_row["label_topic"] = None
-				updated_row["label_ner"] = None
-				updated_row["confidence"] = 0.0
-				updated_row["confidence_reason"] = "All LLMs failed or returned low confidence"
-				updated_row["llm_used"] = "needs_review"
-				updated_row["needs_review"] = True
-
-			if bool(updated_row.get("needs_review", False)):
-				needs_review_rows.append(updated_row)
+			if result.get("needs_review"):
+				needs_review_rows.append(result)
 				needs_review_count += 1
-				logger.warning(
-					"Labeling failed for row %s/%s: %s",
-					index,
-					total,
-					str(updated_row.get("confidence_reason", "LLM unavailable")),
-				)
-			elif float(updated_row.get("confidence", 0.0)) < 0.80:
+				continue
+
+			confidence = result.get("confidence", 0)
+			if confidence < 0.80:
 				rejected_low_confidence += 1
+				continue
+
+			# Get label value for balance check
+			if label_type == "sentiment":
+				label_val = result.get("label_sentiment")
+			elif label_type == "topic":
+				label_val = result.get("label_topic")
+			elif label_type == "ner":
+				label_val = result.get("label_ner")
 			else:
-				normalized_label_type = (label_type or "").lower().strip()
-				if normalized_label_type == "sentiment":
-					label_val = str(updated_row.get("label_sentiment") or "")
-				elif normalized_label_type == "topic":
-					label_val = str(updated_row.get("label_topic") or "")
-				elif normalized_label_type == "ner":
-					label_val = str(updated_row.get("label_ner") or "")
-				else:
-					label_val = str(updated_row.get("label_sentiment") or "")
+				label_val = (
+					result.get("label_sentiment") or
+					result.get("label_topic") or
+					result.get("label_ner")
+				)
 
-				if balancer.should_accept(label_val, total_rows):
-					balancer.record(label_val)
-					labeled_rows.append(updated_row)
-					llm_used = str(updated_row.get("llm_used", ""))
-					if llm_used == "claude":
-						claude_count += 1
-					elif llm_used == "groq":
-						groq_count += 1
-					elif llm_used == "openrouter":
-						openrouter_count += 1
-					elif llm_used == "openai":
-						openai_count += 1
-					elif llm_used == "ollama":
-						ollama_count += 1
-				else:
-					rejected_for_balance += 1
-					continue
+			if not label_val or label_val == "unknown":
+				rejected_low_confidence += 1
+				continue
 
-			if index == 3 and needs_review_count == 3 and not all_llms_unavailable_logged:
-				logger.warning("All LLMs appear to be unavailable. Check API keys.")
-				all_llms_unavailable_logged = True
+			# BALANCE CHECK — hard cap at 50%
+			current_total = len(labeled_rows)
+			max_allowed = max(
+				3,
+				int((current_total + 1) * MAX_LABEL_PERCENT)
+			)
+			current_label_count = label_counts.get(label_val, 0)
 
-		if i + batch_size < total:
-			time.sleep(3.0)
+			if current_label_count >= max_allowed:
+				# This label is dominant — skip row
+				rejected_for_balance += 1
+				continue
 
-		if progress_callback is not None:
-			progress_callback(min(i + batch_size, total), total)
+			# Accept this row
+			label_counts[label_val] = (
+				label_counts.get(label_val, 0) + 1
+			)
+			labeled_rows.append(result)
 
-	logger.info(
-		"LabelBalancer distribution after labeling | distribution=%s | balanced=%s | rejected_for_balance=%s",
-		balancer.get_distribution(),
-		balancer.is_balanced(),
-		rejected_for_balance,
-	)
+			# Track LLM usage
+			llm = result.get("llm_used", "")
+			if llm == "groq":
+				groq_count += 1
+			elif llm == "claude":
+				claude_count += 1
+			elif llm == "openai":
+				openai_count += 1
+			elif llm == "ollama":
+				ollama_count += 1
+			elif llm == "openrouter":
+				openrouter_count += 1
+
+		import time
+		time.sleep(3.0)
+
+		if progress_callback:
+			progress_callback(
+				min(batch_start + batch_size, total_input),
+				total_input
+			)
+
+	# Final hard guard: if only a single label survived, avoid returning an imbalanced set.
+	if labeled_rows and len(label_counts) == 1:
+		rejected_for_balance += len(labeled_rows)
+		labeled_rows = []
 
 	return LabelingResult(
 		labeled_rows=labeled_rows,
 		needs_review_rows=needs_review_rows,
 		rejected_low_confidence=rejected_low_confidence,
 		rejected_for_balance=rejected_for_balance,
-		groq_count=groq_count,
 		claude_count=claude_count,
 		openai_count=openai_count,
-		openrouter_count=openrouter_count,
 		ollama_count=ollama_count,
+		groq_count=groq_count,
+		openrouter_count=openrouter_count,
 		needs_review_count=needs_review_count,
-		total_input=len(rows),
-		total_output=len(labeled_rows),
+		total_input=total_input,
+		total_output=len(labeled_rows)
 	)
