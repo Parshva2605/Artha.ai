@@ -393,6 +393,13 @@ def quality_report(job_id: str, db=Depends(get_db)):
 def debug_env():
     import os
 
+    environment = os.getenv("ENVIRONMENT", "production")
+    if environment == "production":
+        raise HTTPException(
+            status_code=404,
+            detail="Not found"
+        )
+
     return {
         "GROQ_MODEL": os.getenv("GROQ_MODEL", "NOT SET"),
         "GROQ_API_KEY_SET": bool(os.getenv("GROQ_API_KEY")),
