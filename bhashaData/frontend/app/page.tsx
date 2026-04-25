@@ -64,35 +64,35 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-white text-slate-900">
       <section className="bg-[#0F172A] text-white">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <header className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-2xl font-black tracking-tight text-[#E8690A]">Artha AI</p>
-            <nav className="flex items-center gap-6 text-sm text-slate-200">
+            <nav className="hidden sm:flex items-center gap-6 text-sm text-slate-200">
               <a href="#how-it-works" className="hover:text-white">How it works</a>
               <a href="#languages" className="hover:text-white">Languages</a>
               <Link href="/docs" className="hover:text-white">Docs</Link>
             </nav>
-            <Button asChild className="bg-[#E8690A] text-white hover:bg-[#d45e07]">
+            <Button asChild className="w-full sm:w-auto bg-[#E8690A] text-white hover:bg-[#d45e07]">
               <Link href="/generate">Generate Dataset</Link>
             </Button>
           </header>
 
-          <div className="relative mt-16 overflow-hidden rounded-3xl border border-slate-700 bg-[linear-gradient(135deg,#0F172A_0%,#111f3c_40%,#0b1220_100%)] px-6 py-16 sm:px-10">
+          <div className="relative mt-10 overflow-hidden rounded-3xl border border-slate-700 bg-[linear-gradient(135deg,#0F172A_0%,#111f3c_40%,#0b1220_100%)] px-6 py-12 sm:mt-16 sm:py-16 sm:px-10">
             <div className="absolute -top-20 left-10 h-56 w-56 rounded-full bg-[#E8690A]/20 blur-3xl" />
             <div className="absolute bottom-0 right-0 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-            <div className="relative max-w-3xl">
-              <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Give Meaning to Your Data</h1>
-              <p className="mt-6 text-lg text-slate-200">
+            <div className="relative max-w-3xl mx-auto">
+              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-bold text-white text-center tracking-tight">Give Meaning to Your Data</h1>
+              <p className="mt-6 text-base sm:text-xl text-gray-300 text-center max-w-2xl mx-auto">
                 Generate high-quality labeled datasets in Hindi, Gujarati, Marathi, Tamil and English in minutes
                 not weeks.
               </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Button asChild className="bg-[#E8690A] text-white hover:bg-[#d45e07]">
+              <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center items-center">
+                <Button asChild className="w-full sm:w-auto bg-[#E8690A] text-white hover:bg-[#d45e07]">
                   <Link href="/generate">
                     Start Generating <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="border-slate-500 bg-transparent text-white hover:bg-slate-800">
+                <Button asChild variant="outline" className="w-full sm:w-auto border-slate-500 bg-transparent text-white hover:bg-slate-800">
                   <Link href="/docs">
                     View Documentation <BookOpenText className="ml-2 h-4 w-4" />
                   </Link>
@@ -103,9 +103,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="how-it-works" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
-        <h2 className="text-3xl font-bold tracking-tight text-[#0F172A]">How It Works</h2>
-        <div className="mt-8 grid gap-4 md:grid-cols-4">
+      <section id="how-it-works" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#0F172A]">How It Works</h2>
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {howItWorks.map((item) => {
             const Icon = item.icon;
             return (
@@ -122,14 +122,14 @@ export default function HomePage() {
       </section>
 
       <section className="border-y border-orange-100 bg-[linear-gradient(180deg,#FFF8F1_0%,#FFFFFF_100%)]">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#E8690A]">Beyond Text — We Build Any Dataset</p>
           <div className="mt-3 max-w-3xl">
-            <h2 className="text-3xl font-bold tracking-tight text-[#0F172A] sm:text-4xl">Need a Custom Dataset? We Build It For You</h2>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#0F172A]">Need a Custom Dataset? We Build It For You</h2>
             <p className="mt-4 text-lg text-slate-600">Not just text. Any data. Any domain. Any format.</p>
           </div>
 
-          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
               {
                 icon: "🖼️",
@@ -179,7 +179,7 @@ export default function HomePage() {
           </div>
 
           <div className="mt-10 flex flex-col items-start gap-4">
-            <Button asChild className="bg-[#E8690A] text-white hover:bg-[#d45e07]">
+            <Button asChild className="w-full sm:w-auto bg-[#E8690A] text-white hover:bg-[#d45e07]">
               <Link href="/custom-dataset">Request Custom Dataset →</Link>
             </Button>
             <p className="text-sm text-slate-600">Trusted by researchers and AI teams across India</p>
@@ -188,9 +188,9 @@ export default function HomePage() {
       </section>
 
       <section id="languages" className="border-y border-slate-200 bg-slate-50">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold tracking-tight text-[#0F172A]">Supported Languages</h2>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#0F172A]">Supported Languages</h2>
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {languages.map((language) => (
               <Card key={language.name} className="border-slate-200 p-5">
                 <p className="text-2xl">{language.flag}</p>
@@ -203,7 +203,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-8 text-sm text-slate-600 sm:px-6 lg:px-8">
+      <footer className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-8 text-sm text-slate-600 sm:px-6 lg:px-8">
         <p>Built with ❤️ for Indian AI</p>
         <div className="flex gap-4">
           <Link href="/docs" className="hover:text-[#E8690A]">Docs</Link>
