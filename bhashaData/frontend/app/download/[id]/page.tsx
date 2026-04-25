@@ -9,7 +9,7 @@ import type { ExportFormat, QualityReport as QualityReportType } from "../../../
 import { Button } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
 import DownloadCard from "../../../components/DownloadCard";
-import QualityReport from "../../../components/QualityReport";
+import { LANGUAGE_LABELS } from "../../../lib/types";
 
 const defaultExportFormats: ExportFormat[] = ["csv"];
 
@@ -64,10 +64,18 @@ export default function DownloadPage() {
       <h1 className="text-3xl font-bold text-[#0F172A]">Download Dataset</h1>
       <p className="mt-2 text-sm text-slate-600">Job ID: {jobId}</p>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-3">
-          <QualityReport report={report} />
-        </div>
+      <Card className="mt-6 p-6">
+        <p className="text-sm text-slate-600">Quality Score</p>
+        <p className="text-6xl sm:text-8xl font-black text-[#0F172A]">{report.overall_quality_score.toFixed(1)}</p>
+      </Card>
+
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {Object.entries(report.per_language_quality).map(([language, score]) => (
+          <Card key={language} className="p-4">
+            <p className="text-sm text-slate-600">{LANGUAGE_LABELS[language as keyof typeof LANGUAGE_LABELS] ?? language}</p>
+            <p className="text-2xl font-bold text-slate-900">{score.toFixed(1)}</p>
+          </Card>
+        ))}
       </div>
 
       <Card className="mt-6 p-6">
@@ -128,7 +136,7 @@ export default function DownloadPage() {
 
       <Card className="mt-6 p-6">
         <p className="text-lg font-semibold text-slate-900">Stats</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-lg border p-3">
             <p className="text-sm text-slate-600">Total Labeled</p>
             <p className="text-xl font-semibold">{report.total_labeled}</p>

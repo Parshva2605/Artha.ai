@@ -137,14 +137,16 @@ export default function GeneratePage() {
   };
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+    <main className="mx-auto max-w-2xl px-4 py-10">
       <h1 className="text-3xl font-bold tracking-tight text-[#0F172A]">Artha AI Dataset Generator</h1>
       <p className="mt-2 text-slate-600">Configure your dataset in five guided steps.</p>
 
       <div className="mt-8 grid grid-cols-5 gap-2">
         {steps.map((item, index) => (
           <div key={item} className="rounded-lg border p-2 text-center text-xs sm:text-sm">
-            <p className={index <= step ? "font-semibold text-[#E8690A]" : "text-slate-500"}>{index + 1}. {item}</p>
+            <p className={index <= step ? "font-semibold text-[#E8690A]" : "text-slate-500"}>
+              <span>{index + 1}.</span> <span className="hidden sm:inline">{item}</span>
+            </p>
           </div>
         ))}
       </div>
@@ -303,18 +305,18 @@ export default function GeneratePage() {
 
         {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
 
-        <div className="mt-8 flex items-center justify-between">
-          <Button type="button" variant="outline" onClick={goPrevious} disabled={step === 0 || mutation.isPending}>
+        <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <Button type="button" variant="outline" onClick={goPrevious} disabled={step === 0 || mutation.isPending} className="w-full sm:w-auto">
             Previous
           </Button>
           {step < steps.length - 1 ? (
-            <Button type="button" className="bg-[#E8690A] text-white hover:bg-[#d45e07]" onClick={goNext}>
+            <Button type="button" className="w-full sm:w-auto bg-[#E8690A] text-white hover:bg-[#d45e07]" onClick={goNext}>
               Next
             </Button>
           ) : (
             <Button
               type="button"
-              className="bg-[#E8690A] text-white hover:bg-[#d45e07]"
+              className="w-full sm:w-auto bg-[#E8690A] text-white hover:bg-[#d45e07]"
               onClick={submit}
               disabled={mutation.isPending}
             >
