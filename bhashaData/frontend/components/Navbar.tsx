@@ -46,14 +46,24 @@ export default function Navbar() {
     }
 
     syncAuthState();
+  }, []);
+
+  useEffect(() => {
+    setLoggedIn(isLoggedIn());
   }, [pathname]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setLoggedIn(isLoggedIn());
-    }, 2000);
+    setLoggedIn(isLoggedIn());
 
-    return () => clearInterval(interval);
+    const handleStorageChange = () => {
+      setLoggedIn(isLoggedIn());
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
   }, []);
 
   function handleSignOut() {

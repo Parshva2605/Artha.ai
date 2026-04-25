@@ -7,6 +7,7 @@ const TOKEN_KEY = "artha_token";
 export function saveToken(token: string): void {
   if (typeof window !== "undefined") {
     localStorage.setItem(TOKEN_KEY, token);
+    window.dispatchEvent(new Event("storage"));
   }
 }
 
@@ -20,6 +21,7 @@ export function getToken(): string | null {
 export function removeToken(): void {
   if (typeof window !== "undefined") {
     localStorage.removeItem(TOKEN_KEY);
+    window.dispatchEvent(new Event("storage"));
   }
 }
 
