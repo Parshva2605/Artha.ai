@@ -152,7 +152,36 @@ def test_labeling_result_totals_are_consistent(monkeypatch) -> None:
 
     result = run_labeling_pipeline(rows=rows, label_type="sentiment", language_config=config)
 
+    assert result.total_output <= result.total_input
     assert (
-        result.total_output + result.rejected_low_confidence + result.needs_review_count
+        result.total_output
+        + result.rejected_low_confidence
+        + result.needs_review_count
+        + result.rejected_for_balance
         == result.total_input
     )
+
+
+def test_labeler_balance_enforcement() -> None:
+    from backend.pipeline.labeler import LabelBalancer
+
+    b = LabelBalancer(max_per_label_percent=0.50)
+
+    accepted_negative = 0
+    for _ in range(60):
+        if b.should_accept("negative", 100):
+            b.record("negative")
+            accepted_negative += 1
+
+    assert accepted_negative <= 50, (
+        f"Balance not enforced: {accepted_negative} > 50"
+    )
+
+    for _ in range(40):
+        if b.should_accept("positive", 100):
+            b.record("positive")
+
+    print(f"Distribution: {b.get_distribution()}")
+    print(f"Is balanced: {b.is_balanced()}")
+    assert b.is_balanced()
+    print("TEST PASSED: balance enforcement works")
