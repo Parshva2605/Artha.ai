@@ -115,11 +115,11 @@ export default function MyDatasetsPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">My Datasets</h1>
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold">My Datasets</h1>
           <Link
             href="/generate"
-            className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 transition"
+            className="w-full sm:w-auto text-center bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 transition"
           >
             Generate New Dataset
           </Link>
@@ -146,76 +146,78 @@ export default function MyDatasetsPage() {
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-100 border-b">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Job ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.map((job) => (
-                  <tr key={job.job_id} className="border-b hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm text-gray-700">
-                      {formatDate(job.created_at)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-700 font-mono">
-                      {job.job_id.substring(0, 8)}...
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeColor(
-                          job.status,
-                        )}`}
-                      >
-                        {formatStatus(job.status)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/job/${job.job_id}`}
-                          className="text-orange-600 hover:text-orange-700 font-medium"
-                        >
-                          View
-                        </Link>
-                        {job.status === "complete" && (
-                          <a
-                            href={getDownloadUrl(job.job_id, "csv")}
-                            className="text-blue-600 hover:text-blue-700 font-medium"
-                            download
-                          >
-                            Download
-                          </a>
-                        )}
-                        <button
-                          type="button"
-                          className="text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
-                          disabled={deletingJobId === job.job_id}
-                          onClick={() => void handleDelete(job)}
-                        >
-                          {deletingJobId === job.job_id
-                            ? "Working..."
-                            : RUNNING_STATUSES.has(job.status)
-                              ? "Cancel"
-                              : "Delete"}
-                        </button>
-                      </div>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px]">
+                <thead className="bg-gray-100 border-b">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+                      Job ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {jobs.map((job) => (
+                    <tr key={job.job_id} className="border-b hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {formatDate(job.created_at)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700 font-mono">
+                        {job.job_id.substring(0, 8)}...
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeColor(
+                            job.status,
+                          )}`}
+                        >
+                          {formatStatus(job.status)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <div className="flex gap-2">
+                          <Link
+                            href={`/job/${job.job_id}`}
+                            className="text-orange-600 hover:text-orange-700 font-medium"
+                          >
+                            View
+                          </Link>
+                          {job.status === "complete" && (
+                            <a
+                              href={getDownloadUrl(job.job_id, "csv")}
+                              className="text-blue-600 hover:text-blue-700 font-medium"
+                              download
+                            >
+                              Download
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            className="text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
+                            disabled={deletingJobId === job.job_id}
+                            onClick={() => void handleDelete(job)}
+                          >
+                            {deletingJobId === job.job_id
+                              ? "Working..."
+                              : RUNNING_STATUSES.has(job.status)
+                                ? "Cancel"
+                                : "Delete"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

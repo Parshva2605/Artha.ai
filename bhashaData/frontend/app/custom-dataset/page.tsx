@@ -43,13 +43,13 @@ export default function CustomDatasetPage() {
         <div className="rounded-[2rem] border border-orange-100 bg-white px-6 py-10 shadow-[0_20px_80px_rgba(15,23,42,0.08)] sm:px-10 lg:px-12">
           <div className="max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#E8690A]">Custom Dataset Solutions</p>
-            <h1 className="mt-4 text-4xl font-black tracking-tight text-[#0F172A] sm:text-5xl">
+            <h1 className="mt-4 text-3xl sm:text-5xl font-black tracking-tight text-[#0F172A]">
               Describe what you need. We build it.
             </h1>
             <p className="mt-4 text-lg text-slate-600">Delivered in days, not months.</p>
           </div>
 
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4">
             {stats.map((item) => (
               <div key={item.label} className="rounded-2xl border border-orange-100 bg-[#FFF8F1] p-5">
                 <p className="text-2xl font-black text-[#E8690A]">{item.value}</p>
@@ -61,7 +61,7 @@ export default function CustomDatasetPage() {
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-8 sm:px-6 lg:px-8">
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {steps.map((step) => (
             <article key={step.title} className="h-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-3xl">{step.icon}</p>
@@ -73,7 +73,7 @@ export default function CustomDatasetPage() {
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="space-y-8">
           <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#E8690A]">Tell Us What You Need</p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#0F172A]">Request a custom dataset</h2>
@@ -88,7 +88,9 @@ export default function CustomDatasetPage() {
             </div>
           </div>
 
-          <CustomDatasetRequestForm />
+          <div className="max-w-2xl mx-auto w-full px-4 sm:px-0">
+            <CustomDatasetRequestForm />
+          </div>
         </div>
       </section>
     </main>

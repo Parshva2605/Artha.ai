@@ -4,8 +4,9 @@ import Providers from "./providers";
 import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
-  title: "Artha AI",
-  description: "Give Meaning to Your Data",
+  title: "Artha AI - Indian Language Dataset Generator",
+  description: "Generate labeled Indian language datasets in minutes",
+  viewport: "width=device-width, initial-scale=1",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

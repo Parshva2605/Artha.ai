@@ -50,7 +50,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 to-navy-900 flex items-center justify-center px-4">
-      <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md">
+      <div className="bg-white rounded-lg shadow-2xl p-6 sm:p-8 w-full max-w-md mx-auto">
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-orange-600 mb-2">Artha AI</h1>

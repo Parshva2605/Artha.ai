@@ -83,8 +83,8 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
 
 export default function DocsPage() {
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10">
-      <h1 className="text-3xl font-bold text-[#0F172A]">Artha AI Documentation</h1>
+    <main className="mx-auto max-w-6xl px-4 sm:px-6 py-10">
+      <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A]">Artha AI Documentation</h1>
       <p className="mt-2 text-slate-600">Everything you need to run multilingual dataset generation end to end.</p>
 
       <div className="mt-8 space-y-6">
@@ -131,7 +131,9 @@ export default function DocsPage() {
         <Card className="p-6">
           <h2 className="text-xl font-semibold">7. Quality Scoring</h2>
           <p className="mt-3 text-slate-700">Quality is derived from labeling confidence:</p>
-          <p className="mt-2 rounded-md bg-slate-100 p-3 font-mono text-sm text-slate-800">quality_score = average(confidence) * 100</p>
+          <div className="mt-2 overflow-x-auto rounded-md bg-slate-100 p-3">
+            <p className="font-mono text-xs sm:text-sm text-slate-800">quality_score = average(confidence) * 100</p>
+          </div>
           <ul className="mt-3 list-disc space-y-1 pl-5 text-slate-700">
             <li>&gt;= 90: Excellent</li>
             <li>80-89: Good</li>
