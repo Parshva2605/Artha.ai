@@ -14,7 +14,8 @@ export type JobStatus =
   | "quality_check"
   | "exporting"
   | "complete"
-  | "failed";
+  | "failed"
+  | "cancelled";
 
 export interface GenerateDatasetRequest {
   languages: Language[];

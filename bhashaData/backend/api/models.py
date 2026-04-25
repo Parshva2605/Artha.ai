@@ -87,7 +87,7 @@ class HealthResponse(BaseModel):
 
 class JobStatusResponse(BaseModel):
     job_id: str
-    status: Literal["queued", "scraping", "cleaning", "labeling", "quality_check", "exporting", "complete", "failed"]
+    status: Literal["queued", "scraping", "cleaning", "labeling", "quality_check", "exporting", "complete", "failed", "cancelled"]
     progress_percent: int
     current_step: str
     per_language_status: dict[str, dict[str, Any]]

@@ -28,7 +28,7 @@ export default function JobPage() {
     queryFn: () => getJobStatus(jobId),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      if (status === "complete" || status === "failed") return false;
+      if (status === "complete" || status === "failed" || status === "cancelled") return false;
       return 3000;
     },
     enabled: Boolean(jobId),
@@ -82,10 +82,16 @@ export default function JobPage() {
         </Card>
       )}
 
-      {data.status === "failed" && (
+      {(data.status === "failed" || data.status === "cancelled") && (
         <Card className="mt-6 border-red-200 bg-red-50 p-6">
-          <p className="text-lg font-semibold text-red-700">Dataset generation failed</p>
-          <p className="mt-1 text-sm text-red-700">{data.error_message ?? "Unknown error"}</p>
+          <p className="text-lg font-semibold text-red-700">
+            {data.status === "cancelled" ? "Dataset generation cancelled" : "Dataset generation failed"}
+          </p>
+          <p className="mt-1 text-sm text-red-700">
+            {data.status === "cancelled"
+              ? "Job was cancelled. Please generate a new dataset."
+              : (data.error_message ?? "Unknown error")}
+          </p>
           <Button asChild className="mt-4 bg-[#E8690A] text-white hover:bg-[#d45e07]">
             <Link href="/generate">Try Again</Link>
           </Button>
