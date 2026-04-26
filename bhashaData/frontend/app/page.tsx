@@ -121,6 +121,85 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="py-16 px-4 bg-[#0F172A]">
+        <div className="mx-auto max-w-5xl">
+          <h2 className="mb-4 text-center text-2xl font-bold text-white sm:text-3xl">Double-Verified Quality You Can Trust</h2>
+          <p className="mx-auto mb-12 max-w-2xl text-center text-gray-400">
+            Every dataset goes through our 5-layer quality pipeline before you download it.
+          </p>
+
+          <div className="space-y-4">
+            {[
+              {
+                icon: "🕷️",
+                title: "Real Data Collection",
+                text: "We scrape real content from Google Play, YouTube and news sites — never synthetic or fake data.",
+              },
+              {
+                icon: "🧹",
+                title: "Language Verification",
+                text: "Every row is verified to be in the correct language using detection algorithms. Wrong language rows are automatically removed.",
+              },
+              {
+                icon: "🔍",
+                title: "Deduplication",
+                text: "MD5 hashing removes duplicate rows before labeling. You never pay for the same data twice.",
+              },
+              {
+                icon: "🤖",
+                title: "AI Labeling with Confidence Score",
+                text: "Each row is labeled by Groq AI and assigned a confidence score from 0 to 1. Only rows scoring 0.80 or above are included.",
+              },
+              {
+                icon: "⚖️",
+                title: "Balance Enforcement",
+                text: "No single label can exceed 50% of your dataset. Our balancer ensures positive, negative and neutral are fairly represented.",
+              },
+            ].map((step, index) => (
+              <div key={step.title} className="flex gap-4 rounded-2xl border border-gray-700 bg-[#1E293B] p-5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E8690A]/15 text-xl">
+                  {index + 1}
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-white">
+                    {step.icon} {step.title}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-gray-300">{step.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 rounded-xl bg-[#1E293B] p-6 text-center">
+            <p className="text-4xl font-bold text-[#E8690A]">98.8%</p>
+            <p className="mt-1 text-gray-400">Average confidence score across all generated datasets</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <h2 className="text-2xl font-bold tracking-tight text-[#0F172A] sm:text-3xl">Getting Started in 4 Steps</h2>
+        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-4">
+          {[
+            ["1", "Create Account", "Sign up free at artha-ai.dev. No credit card required for demo."],
+            ["2", "Describe Your Dataset", "Choose language, domain, label type and how many rows you need."],
+            ["3", "Download Your Data", "Get CSV, JSON or HuggingFace format with full quality report."],
+            ["4", "Report Any Issues", "Not satisfied? Use our report tool and we fix it within 24 hours."],
+          ].map(([number, title, text]) => (
+            <Card key={title} className="border-slate-200 p-5">
+              <p className="text-sm font-semibold text-[#E8690A]">Step {number}</p>
+              <p className="mt-3 text-lg font-semibold text-slate-900">{title}</p>
+              <p className="mt-2 text-sm text-slate-600">{text}</p>
+            </Card>
+          ))}
+        </div>
+        <div className="mt-8 flex justify-center">
+          <Button asChild className="w-full sm:w-auto bg-[#E8690A] text-white hover:bg-[#d45e07]">
+            <Link href="/generate">Start Generating Free →</Link>
+          </Button>
+        </div>
+      </section>
+
       <section className="border-y border-orange-100 bg-[linear-gradient(180deg,#FFF8F1_0%,#FFFFFF_100%)]">
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#E8690A]">Beyond Text — We Build Any Dataset</p>
