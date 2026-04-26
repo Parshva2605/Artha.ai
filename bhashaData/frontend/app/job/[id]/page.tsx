@@ -11,13 +11,6 @@ import { Button } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
 import ProgressTracker from "../../../components/ProgressTracker";
 
-function formatEta(seconds: number | null): string {
-  if (seconds === null) return "Calculating...";
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}m ${secs}s`;
-}
-
 export default function JobPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -69,7 +62,6 @@ export default function JobPage() {
       <p className="mt-2 text-sm text-slate-600">Job ID: {data.job_id}</p>
 
       <Card className="mt-6 border-slate-200 p-6">
-        <p className="text-sm sm:text-lg font-semibold text-slate-900">Estimated time remaining: {formatEta(data.eta_seconds)}</p>
         <div className="mt-4">
           <ProgressTracker jobStatus={data} />
         </div>

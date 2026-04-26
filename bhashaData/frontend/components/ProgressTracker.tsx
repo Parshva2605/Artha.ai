@@ -41,6 +41,9 @@ export default function ProgressTracker({ jobStatus }: ProgressTrackerProps) {
           />
         </div>
         <p className="mt-2 text-sm text-slate-700">{jobStatus.progress_percent}% - {jobStatus.current_step}</p>
+        <p className="text-sm text-gray-400 mt-2 text-center">
+          Processing your dataset... Time varies based on language and size.
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
