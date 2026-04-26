@@ -298,11 +298,99 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-8 text-sm text-slate-600 sm:px-6 lg:px-8">
-        <p>Built with ❤️ for Indian AI</p>
-        <div className="flex gap-4">
-          <Link href="/docs" className="hover:text-[#E8690A]">Docs</Link>
-          <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-[#E8690A]">GitHub</a>
+      <footer className="bg-[#0F172A] border-t border-gray-800 py-12 px-4">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-10 grid grid-cols-1 gap-8 sm:grid-cols-3">
+            <div>
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-xl font-bold text-white">Artha AI</span>
+                <span className="rounded-full bg-[#E8690A] px-2 py-0.5 text-xs font-semibold text-white">
+                  BETA
+                </span>
+              </div>
+              <p className="text-sm leading-relaxed text-gray-400">
+                India&apos;s first on-demand Indian language dataset generation platform.
+                Generate labeled training data in minutes.
+              </p>
+            </div>
+
+            <div>
+              <h4 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">
+                Product
+              </h4>
+              <ul className="space-y-2">
+                <li>
+                  <a href="/generate" className="text-sm text-gray-400 transition-colors hover:text-white">
+                    Generate Dataset
+                  </a>
+                </li>
+                <li>
+                  <a href="/custom-dataset" className="text-sm text-gray-400 transition-colors hover:text-white">
+                    Custom Dataset
+                  </a>
+                </li>
+                <li>
+                  <a href="/docs" className="text-sm text-gray-400 transition-colors hover:text-white">
+                    Documentation
+                  </a>
+                </li>
+                <li>
+                  <a href="/my-datasets" className="text-sm text-gray-400 transition-colors hover:text-white">
+                    My Datasets
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">
+                Contact
+              </h4>
+              <ul className="space-y-2">
+                <li>
+                  <a href="mailto:arthaai.dev@gmail.com" className="text-sm text-gray-400 transition-colors hover:text-white">
+                    arthaai.dev@gmail.com
+                  </a>
+                </li>
+                <li>
+                  <a href="/custom-dataset" className="text-sm text-gray-400 transition-colors hover:text-white">
+                    Request Custom Dataset
+                  </a>
+                </li>
+                <li>
+                  <a href="/report" className="text-sm text-gray-400 transition-colors hover:text-white">
+                    Report an Issue
+                  </a>
+                </li>
+              </ul>
+
+              <div className="mt-6">
+                <p className="mb-2 text-xs text-gray-500">Supported Languages</p>
+                <div className="flex flex-wrap gap-2">
+                  {["Hindi", "Gujarati", "Marathi", "Tamil", "English"].map((lang) => (
+                    <span key={lang} className="rounded bg-[#1E293B] px-2 py-1 text-xs text-gray-300">
+                      {lang}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center justify-between gap-4 border-t border-gray-800 pt-6 sm:flex-row">
+            <p className="text-sm text-gray-500">© 2026 Artha AI. All rights reserved.</p>
+            <div className="flex items-center gap-6">
+              <a href="/docs" className="text-sm text-gray-500 transition-colors hover:text-gray-300">
+                Docs
+              </a>
+              <a href="/report" className="text-sm text-gray-500 transition-colors hover:text-gray-300">
+                Report Issue
+              </a>
+              <a href="mailto:arthaai.dev@gmail.com" className="text-sm text-gray-500 transition-colors hover:text-gray-300">
+                Contact
+              </a>
+            </div>
+          </div>
         </div>
       </footer>
     </main>
