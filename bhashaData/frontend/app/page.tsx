@@ -1,8 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, BookOpenText, Download, Languages, Search, Tags } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
+import FaqAccordion from "../components/FaqAccordion";
+
+export const metadata: Metadata = {
+  title: "Artha AI - Indian Language Dataset Generator | Hindi Gujarati Tamil Marathi",
+  description:
+    "Generate labeled AI training datasets in Hindi, Gujarati, Marathi, Tamil and English automatically. 98.8% quality score. Download in CSV, JSON, HuggingFace.",
+};
 
 const howItWorks = [
   {
@@ -279,6 +287,14 @@ export default function HomePage() {
               </Card>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <h2 className="text-2xl font-bold tracking-tight text-[#0F172A] sm:text-3xl">Frequently Asked Questions</h2>
+        <p className="mt-2 text-slate-600">Common questions about quality, formats, and support.</p>
+        <div className="mt-8">
+          <FaqAccordion />
         </div>
       </section>
 
