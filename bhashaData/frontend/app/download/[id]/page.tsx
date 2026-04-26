@@ -131,6 +131,12 @@ export default function DownloadPage() {
         <p className="mt-1 text-sm text-slate-600">Total labeled rows: {report.total_labeled}</p>
         <div className="mt-4">
           <DownloadCard jobId={jobId} formats={exportFormats} />
+          <Link
+            href={`/report?job_id=${jobId}`}
+            className="mt-4 block text-center text-sm text-gray-400 underline transition-colors hover:text-[#E8690A]"
+          >
+            🚩 Report a data quality issue
+          </Link>
         </div>
       </Card>
 
