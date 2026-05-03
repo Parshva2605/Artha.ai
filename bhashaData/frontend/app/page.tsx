@@ -139,27 +139,22 @@ export default function HomePage() {
           <div className="space-y-4">
             {[
               {
-                icon: "🕷️",
                 title: "Real Data Collection",
                 text: "We scrape real content from Google Play, YouTube and news sites — never synthetic or fake data.",
               },
               {
-                icon: "🧹",
                 title: "Language Verification",
                 text: "Every row is verified to be in the correct language using detection algorithms. Wrong language rows are automatically removed.",
               },
               {
-                icon: "🔍",
                 title: "Deduplication",
                 text: "MD5 hashing removes duplicate rows before labeling. You never pay for the same data twice.",
               },
               {
-                icon: "🤖",
                 title: "AI Labeling with Confidence Score",
                 text: "Each row is labeled by Groq AI and assigned a confidence score from 0 to 1. Only rows scoring 0.80 or above are included.",
               },
               {
-                icon: "⚖️",
                 title: "Balance Enforcement",
                 text: "No single label can exceed 50% of your dataset. Our balancer ensures positive, negative and neutral are fairly represented.",
               },
@@ -169,9 +164,7 @@ export default function HomePage() {
                   {index + 1}
                 </div>
                 <div>
-                  <p className="text-lg font-semibold text-white">
-                    {step.icon} {step.title}
-                  </p>
+                  <p className="text-lg font-semibold text-white">{step.title}</p>
                   <p className="mt-2 text-sm leading-6 text-gray-300">{step.text}</p>
                 </div>
               </div>
