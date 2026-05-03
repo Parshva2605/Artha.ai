@@ -247,7 +247,7 @@ def generate_dataset_task(job_id: str, request: dict):
             return run_scrapers_for_language(
                 language_config=language_config,
                 domain=domain,
-                target_count=quantity_per_language,
+                target_count=quantity_per_language * 8,
             )
 
         scrape_results = _run_parallel_with_progress(
@@ -346,7 +346,8 @@ def generate_dataset_task(job_id: str, request: dict):
         def label_language(language_code: str):
             language_config = get_config_by_code(language_code)
             clean_result = clean_results[language_code]
-            rows_for_labeling = getattr(clean_result, "clean_rows", [])[: quantity_per_language * 4]
+            oversample_target = int(quantity_per_language * 2.5)
+            rows_for_labeling = getattr(clean_result, "clean_rows", [])[:oversample_target]
 
             with label_progress_lock:
                 label_stage_progress[language_code] = {
