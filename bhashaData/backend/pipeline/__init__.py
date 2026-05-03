@@ -13,7 +13,7 @@ from .exporter import (
 	prepare_rows_for_export,
 	run_export_pipeline,
 )
-from .labeler import LabelResult, LabelingResult, label_row, label_text, run_labeling_pipeline
+from .labeler import LabelResult, LabelingResult, balance_dataset, label_row, label_text, run_labeling_pipeline
 from .quality import (
 	BalanceResult,
 	BenchmarkComparison,
@@ -37,6 +37,7 @@ __all__ = [
 	"prepare_rows_for_export",
 	"generate_metadata",
 	"run_labeling_pipeline",
+	"balance_dataset",
 	"LabelingResult",
 	"label_text",
 	"label_row",

@@ -993,3 +993,94 @@ def run_labeling_pipeline(
 		total_input=total_input,
 		total_output=len(labeled_rows)
 	)
+
+
+def balance_dataset(
+	rows: list[dict],
+	target_count: int,
+	label_type: str
+) -> list[dict]:
+	"""
+	Balance a labeled dataset by ensuring no single label exceeds ~33% of rows
+	(fair distribution for sentiment/topic with 3-6 labels).
+	
+	Args:
+	    rows: List of labeled row dicts
+	    target_count: Desired final row count
+	    label_type: "sentiment", "topic", "ner", or "all"
+	
+	Returns:
+	    Balanced list of rows up to target_count size
+	"""
+	if not rows or target_count <= 0:
+		return rows
+
+	# Get label field name based on label_type
+	if label_type == "sentiment":
+		label_field = "label_sentiment"
+	elif label_type == "topic":
+		label_field = "label_topic"
+	elif label_type == "ner":
+		label_field = "label_ner"
+	else:
+		label_field = "label_sentiment"
+
+	# Group rows by label
+	label_groups: dict[str, list] = {}
+	for row in rows:
+		label = row.get(label_field, "unknown")
+		if label not in label_groups:
+			label_groups[label] = []
+		label_groups[label].append(row)
+
+	if not label_groups:
+		return rows[:target_count]
+
+	# Calculate per-label quota
+	num_labels = len(label_groups)
+	per_label_quota = target_count // num_labels
+	remainder = target_count % num_labels
+
+	# Build balanced dataset
+	balanced = []
+	labels_sorted = sorted(
+		label_groups.keys(),
+		key=lambda l: len(label_groups[l]),
+		reverse=False  # smallest group first
+	)
+
+	for i, label in enumerate(labels_sorted):
+		# Give remainder rows to first labels (smallest groups)
+		quota = per_label_quota + (1 if i < remainder else 0)
+		available = label_groups[label]
+
+		# Sort by confidence descending, take highest confidence rows first
+		available_sorted = sorted(
+			available,
+			key=lambda r: float(r.get("confidence", 0)),
+			reverse=True
+		)
+
+		# Take up to quota rows
+		taken = available_sorted[:quota]
+		balanced.extend(taken)
+
+		logger.info(
+			"[BALANCE] %s: %d available → %d taken (quota: %d)",
+			label,
+			len(available),
+			len(taken),
+			quota
+		)
+
+	# Shuffle to mix labels
+	import random
+	random.shuffle(balanced)
+
+	logger.info(
+		"[BALANCE] Final: %d rows from %d labeled rows",
+		len(balanced),
+		len(rows)
+	)
+
+	return balanced
