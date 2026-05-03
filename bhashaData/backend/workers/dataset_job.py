@@ -16,7 +16,7 @@ from backend.database.db import SessionLocal
 from backend.database.models import get_job, update_job_status
 from backend.pipeline.cleaner import Deduplicator, run_cleaning_pipeline
 from backend.pipeline.exporter import run_export_pipeline
-from backend.pipeline.labeler import run_labeling_pipeline
+from backend.pipeline.labeler import balance_dataset, run_labeling_pipeline
 from backend.pipeline.quality import generate_quality_report
 from backend.scrapers.orchestrator import run_scrapers_for_language
 from backend.workers.celery_app import celery_app
@@ -382,13 +382,41 @@ def generate_dataset_task(job_id: str, request: dict):
         report_progress(job_id, "labeling", 75, "Labeling complete", per_language_status)
 
         _ensure_not_cancelled(db, job_id)
-        update_job_status(db, job_id, "quality_check")
-        report_progress(job_id, "quality_check", 75, "Quality check", per_language_status)
+        update_job_status(db, job_id, "balancing")
+        report_progress(job_id, "balancing", 76, "Balancing dataset...", per_language_status)
 
-        merged_labeled_rows: list[dict[str, Any]] = []
+        # Balance per language first, then merge
+        balanced_rows = []
+        for lang_code in languages:
+            lang_labeled = getattr(label_results[lang_code], "labeled_rows", [])
+            
+            # Balance this language to target quantity
+            lang_balanced = balance_dataset(
+                rows=lang_labeled,
+                target_count=quantity_per_language,
+                label_type=label_type
+            )
+            
+            logger.info(
+                "[BALANCE] %s: %d → %d rows after balance",
+                lang_code,
+                len(lang_labeled),
+                len(lang_balanced)
+            )
+            
+            per_language_status[lang_code]["rows_labeled"] = len(lang_balanced)
+            balanced_rows.extend(lang_balanced)
+
+        report_progress(job_id, "balancing", 80, "Balance complete", per_language_status)
+
+        _ensure_not_cancelled(db, job_id)
+        update_job_status(db, job_id, "quality_check")
+        report_progress(job_id, "quality_check", 80, "Quality check", per_language_status)
+
+        # Use balanced rows for quality check and export
+        merged_labeled_rows = balanced_rows
         merged_needs_review_rows: list[dict[str, Any]] = []
         for label_result in label_results.values():
-            merged_labeled_rows.extend(getattr(label_result, "labeled_rows", []))
             merged_needs_review_rows.extend(getattr(label_result, "needs_review_rows", []))
 
         requested_per_language = {language_code: quantity_per_language for language_code in languages}
