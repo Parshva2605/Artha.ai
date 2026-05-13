@@ -231,6 +231,7 @@ def generate_dataset_task(job_id: str, request: dict):
     quantity_per_language = int(request_payload.get("quantity_per_language", 100))
     export_formats = list(request_payload.get("export_formats", []))
     email = request_payload.get("email")
+    custom_labels = request_payload.get("custom_labels")
     per_language_status = _build_per_language_status(languages)
     _JOB_START_TIMES[job_id] = datetime.now(timezone.utc).timestamp()
 
@@ -360,6 +361,7 @@ def generate_dataset_task(job_id: str, request: dict):
                 label_type=label_type,
                 language_config=language_config,
                 progress_callback=_make_label_progress_callback(language_code, len(rows_for_labeling)),
+                custom_labels=custom_labels,
             )
 
         label_results = _run_parallel_with_progress(
@@ -461,7 +463,10 @@ def generate_dataset_task(job_id: str, request: dict):
             db,
             job_id,
             "complete",
-            result_summary=_quality_report_to_dict(quality_report),
+            result_summary={
+                **_quality_report_to_dict(quality_report),
+                "custom_labels": custom_labels,
+            },
             output_dir=export_result.output_dir,
             exported_formats=export_result.exported_files,
         )
