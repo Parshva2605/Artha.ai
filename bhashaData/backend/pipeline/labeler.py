@@ -1080,4 +1080,14 @@ def balance_dataset(
 	import random
 	random.shuffle(result)
 
+	# Verify we hit target; if not, log warning
+	if len(result) != target_count:
+		logger.warning(
+			"balance_dataset: could only deliver %d of requested %d rows. "
+			"Available per label: %s",
+			len(result),
+			target_count,
+			{k: len(v) for k, v in groups.items()}
+		)
+
 	return result
