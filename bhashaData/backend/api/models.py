@@ -10,7 +10,7 @@ from backend.config.languages import is_supported_language
 
 SUPPORTED_EXPORT_FORMATS = {"csv", "json", "excel", "parquet", "huggingface"}
 SUPPORTED_DOMAINS = {"app_reviews", "social_media", "news", "mixed"}
-SUPPORTED_LABEL_TYPES = {"sentiment", "topic", "ner", "all"}
+SUPPORTED_LABEL_TYPES = {"sentiment", "topic", "ner", "all", "custom"}
 
 
 class GenerateDatasetRequest(BaseModel):
@@ -25,6 +25,7 @@ class GenerateDatasetRequest(BaseModel):
     )
     export_formats: list[str] = Field(min_length=1)
     email: str | None = None
+    custom_labels: list[str] | None = None
 
     @field_validator("languages")
     @classmethod
@@ -70,6 +71,23 @@ class GenerateDatasetRequest(BaseModel):
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
             raise ValueError("Invalid email format")
         return email
+
+    @field_validator("custom_labels", mode="after")
+    @classmethod
+    def validate_custom_labels(cls, v: list[str] | None, info) -> list[str] | None:
+        label_type = info.data.get("label_type")
+        if label_type == "custom":
+            if not v or len(v) < 2:
+                raise ValueError("Custom label type requires at least 2 labels")
+            if len(v) > 10:
+                raise ValueError("Maximum 10 custom labels allowed")
+            for label in v:
+                label_stripped = label.strip()
+                if not label_stripped:
+                    raise ValueError("Label names cannot be empty")
+                if len(label_stripped) > 30:
+                    raise ValueError(f"Label '{label_stripped}' exceeds 30 character limit")
+        return v
 
 
 class GenerateDatasetResponse(BaseModel):
