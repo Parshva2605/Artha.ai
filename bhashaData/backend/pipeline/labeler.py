@@ -981,10 +981,21 @@ def balance_dataset(
 	target_count: int,
 	label_type: str
 ) -> list[dict]:
-	# Implementation: flexible proportional soft-cap algorithm
+	"""
+	Balance dataset to guarantee exactly target_count rows with soft cap enforcement.
+	
+	Algorithm:
+	1. Group rows by label, sort each by confidence descending
+	2. Calculate fair_share = target_count / num_labels
+	3. Allocate min(group_size, fair_share, 0.5*target_count) per label
+	4. Fill remaining quota from labels with unused rows (largest first)
+	5. Select highest-confidence rows per allocation
+	6. Shuffle and return exactly target_count rows
+	"""
 	if not rows or target_count <= 0:
 		return rows
 
+	# Determine label field
 	if label_type == "sentiment":
 		label_field = "label_sentiment"
 	elif label_type == "topic":
@@ -994,86 +1005,79 @@ def balance_dataset(
 	else:
 		label_field = "label_sentiment"
 
-	# Group rows by label
-	label_groups: dict[str, list] = {}
+	# Group rows by label, sort each group by confidence descending
+	from collections import defaultdict
+	groups: dict[str, list] = defaultdict(list)
 	for row in rows:
 		label = row.get(label_field, "unknown")
-		if label not in label_groups:
-			label_groups[label] = []
-		label_groups[label].append(row)
+		groups[label].append(row)
+	
+	for label in groups:
+		groups[label].sort(key=lambda x: float(x.get("confidence", 0)), reverse=True)
 
-	if not label_groups:
-		return rows[:target_count]
+	num_labels = len(groups)
+	if num_labels == 0:
+		return rows
 
-	# Soft cap: no label may exceed 50% of the target
-	max_per_label = int(target_count * 0.50)
+	total_available = sum(len(g) for g in groups.values())
 
-	# Cap each label at its group size and the soft cap
-	available_after_cap: dict[str, int] = {}
-	for k, v in label_groups.items():
-		available_after_cap[k] = min(len(v), max_per_label)
-
-	total_available = sum(available_after_cap.values())
-
-	# If everything after capping is still less than target, just take all available
+	# If we don't have enough rows even without any cap, return all
 	if total_available <= target_count:
-		# Take highest-confidence rows from each group up to their full size
-		balanced = []
-		for label, rows_group in label_groups.items():
-			taken = sorted(rows_group, key=lambda r: float(r.get("confidence", 0)), reverse=True)
-			balanced.extend(taken[: available_after_cap[label]])
-
-		# Shuffle for randomness
 		import random
-		random.shuffle(balanced)
+		result = [row for g in groups.values() for row in g]
+		random.shuffle(result)
+		return result
 
-		return balanced
+	# Soft cap: no label gets more than 50% of target
+	max_per_label = max(1, int(target_count * 0.50))
 
-	# Otherwise we have enough after capping; allocate proportionally but ensure we hit target_count
-	# Start by assigning each label its capped minimum
-	allocation: dict[str, int] = {k: 0 for k in label_groups.keys()}
+	# Step 1: First pass — allocate fair_share or available, whichever is smaller
+	fair_share = target_count // num_labels
+	allocations: dict[str, int] = {}
+	for label, group in groups.items():
+		allocations[label] = min(len(group), fair_share, max_per_label)
 
-	# Sort labels by increasing available size so small groups get filled first
-	labels_sorted = sorted(label_groups.keys(), key=lambda l: len(label_groups[l]))
+	# Step 2: Calculate remaining quota after first pass
+	remaining = target_count - sum(allocations.values())
 
-	remaining = target_count
-
-	# First pass: give each label up to its available_after_cap but prefer filling smaller groups
-	for label in labels_sorted:
-		give = min(available_after_cap[label], remaining)
-		allocation[label] = give
-		remaining -= give
-		if remaining <= 0:
-			break
-
-	# If still remaining (shouldn't happen due to earlier check), distribute to largest groups
+	# Step 3: Fill remaining from labels that have unused rows, largest first
 	if remaining > 0:
-		labels_desc = sorted(label_groups.keys(), key=lambda l: len(label_groups[l]), reverse=True)
-		for label in labels_desc:
-			can_take = available_after_cap[label] - allocation[label]
-			if can_take <= 0:
-				continue
-			give = min(can_take, remaining)
-			allocation[label] += give
-			remaining -= give
+		eligible = [
+			(label, len(group) - allocations[label])
+			for label, group in groups.items()
+			if len(group) > allocations[label]
+			and allocations[label] < max_per_label
+		]
+		eligible.sort(key=lambda x: x[1], reverse=True)
+
+		for label, unused in eligible:
 			if remaining <= 0:
 				break
+			can_give = min(unused, remaining, max_per_label - allocations[label])
+			allocations[label] += can_give
+			remaining -= can_give
 
-	# Now build balanced list using the allocation, selecting highest-confidence rows per label
-	balanced: list[dict] = []
-	for label, count in allocation.items():
-		if count <= 0:
-			continue
-		group = label_groups[label]
-		selected = sorted(group, key=lambda r: float(r.get("confidence", 0)), reverse=True)[:count]
-		balanced.extend(selected)
+	# Step 4: If still short (all labels exhausted), take any remaining rows
+	if remaining > 0:
+		for label, group in sorted(groups.items(),
+									key=lambda x: len(x[1]), reverse=True):
+			if remaining <= 0:
+				break
+			current = allocations[label]
+			available_extra = len(group) - current
+			if available_extra > 0:
+				give = min(available_extra, remaining)
+				allocations[label] += give
+				remaining -= give
 
-	# Sanity: if we somehow have more than target_count, trim by confidence
-	if len(balanced) > target_count:
-		balanced = sorted(balanced, key=lambda r: float(r.get("confidence", 0)), reverse=True)[:target_count]
+	# Step 5: Select rows per allocation
+	result: list[dict] = []
+	for label, count in allocations.items():
+		selected = groups[label][:count]
+		result.extend(selected)
 
-	# Shuffle to mix labels while keeping selection deterministic enough
+	# Step 6: Shuffle and return
 	import random
-	random.shuffle(balanced)
+	random.shuffle(result)
 
-	return balanced
+	return result
