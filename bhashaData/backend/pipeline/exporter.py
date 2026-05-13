@@ -291,7 +291,8 @@ def generate_metadata(
 		for row in rows
 		if str(row.get("language") or row.get("language_code") or "").strip()
 	])
-	label_types = ["sentiment", "topic", "ner"] if (label_type or "").lower() == "all" else [label_type]
+	normalized_label_type = (label_type or "").lower().strip()
+	label_types = ["sentiment", "topic", "ner"] if normalized_label_type == "all" else [normalized_label_type]
 	delivered_by_language: dict[str, int] = {}
 	needs_review_by_language: dict[str, int] = {}
 	for language_code in languages:

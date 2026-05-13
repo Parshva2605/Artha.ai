@@ -231,7 +231,7 @@ def generate_dataset_task(job_id: str, request: dict):
     quantity_per_language = int(request_payload.get("quantity_per_language", 100))
     export_formats = list(request_payload.get("export_formats", []))
     email = request_payload.get("email")
-    custom_labels = request_payload.get("custom_labels")
+    custom_labels = request_payload.get("custom_labels", None)
     per_language_status = _build_per_language_status(languages)
     _JOB_START_TIMES[job_id] = datetime.now(timezone.utc).timestamp()
 
@@ -356,6 +356,7 @@ def generate_dataset_task(job_id: str, request: dict):
                     "total": max(1, len(rows_for_labeling)),
                 }
 
+            logger.info(f"label_type={label_type}, custom_labels={custom_labels}")
             return run_labeling_pipeline(
                 rows=rows_for_labeling,
                 label_type=label_type,
@@ -435,6 +436,7 @@ def generate_dataset_task(job_id: str, request: dict):
             })(),
             language_codes=languages,
             label_type=label_type,
+            custom_labels=custom_labels,
             requested_per_language=requested_per_language,
             job_id=job_id,
         )

@@ -72,16 +72,17 @@ def calculate_per_language_quality(rows: list[dict], language_codes: list[str]) 
 	return quality_by_language
 
 
-def calculate_label_distribution(rows: list[dict], label_type: str) -> dict:
+def calculate_label_distribution(rows: list[dict], label_type: str, custom_labels: list[str] | None = None) -> dict:
 	field_map = {
 		"sentiment": "label_sentiment",
 		"topic": "label_topic",
 		"ner": "label_ner",
+		"custom": "label_sentiment",
 	}
 	if label_type not in field_map:
 		raise ValueError(f"Unknown label_type: {label_type}")
 	field_name = field_map[label_type]
-	distribution: dict[str, int] = {}
+	distribution: dict[str, int] = {str(label): 0 for label in (custom_labels or [])} if label_type == "custom" else {}
 	for row in rows:
 		label_value = row.get(field_name)
 		if label_value is None:
@@ -91,11 +92,16 @@ def calculate_label_distribution(rows: list[dict], label_type: str) -> dict:
 	return distribution
 
 
-def calculate_per_language_distribution(rows: list[dict], language_codes: list[str], label_type: str) -> dict:
+def calculate_per_language_distribution(
+	rows: list[dict],
+	language_codes: list[str],
+	label_type: str,
+	custom_labels: list[str] | None = None,
+) -> dict:
 	per_language: dict[str, dict[str, int]] = {}
 	for language_code in language_codes:
 		language_rows = [row for row in rows if _get_language_field(row).lower() == language_code.lower()]
-		per_language[language_code] = calculate_label_distribution(language_rows, label_type)
+		per_language[language_code] = calculate_label_distribution(language_rows, label_type, custom_labels=custom_labels)
 	return per_language
 
 
@@ -220,11 +226,17 @@ def generate_quality_report(
 	label_type: str,
 	requested_per_language: dict,
 	job_id: str,
+	custom_labels: list[str] | None = None,
 ) -> QualityReport:
 	overall_quality_score = calculate_quality_score(labeled_rows)
 	per_language_quality = calculate_per_language_quality(labeled_rows, language_codes)
-	label_distribution = calculate_label_distribution(labeled_rows, label_type)
-	per_language_distribution = calculate_per_language_distribution(labeled_rows, language_codes, label_type)
+	label_distribution = calculate_label_distribution(labeled_rows, label_type, custom_labels=custom_labels)
+	per_language_distribution = calculate_per_language_distribution(
+		labeled_rows,
+		language_codes,
+		label_type,
+		custom_labels=custom_labels,
+	)
 	balance_result = check_label_balance(label_distribution, len(labeled_rows))
 	if balance_result.is_balanced:
 		balance_improvement_note = (

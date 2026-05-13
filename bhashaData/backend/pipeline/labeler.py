@@ -332,8 +332,17 @@ class LabelingResult:
 	total_output: int = 0
 
 
-def build_prompt(label_type: str, text: str, language_name: str) -> str:
+def build_prompt(
+	label_type: str,
+	text: str,
+	language_name: str,
+	custom_labels: list[str] | None = None,
+) -> str:
 	normalized_type = (label_type or "").strip().lower()
+	if normalized_type == "custom":
+		if not custom_labels:
+			raise ValueError("custom_labels required when label_type is custom")
+		return build_custom_label_prompt(text, custom_labels, language_name)
 	if normalized_type not in LABEL_PROMPTS:
 		raise ValueError(f"Unknown label_type: {label_type}")
 	return LABEL_PROMPTS[normalized_type].format(text=text, language_name=language_name)
@@ -1189,6 +1198,7 @@ def run_labeling_pipeline(
 
 	# Label counter for tracking
 	label_counts: dict[str, int] = {}
+	normalized_label_type = (label_type or "").strip().lower()
 
 	batch_size = 5
 	for batch_start in range(0, total_input, batch_size):
@@ -1208,13 +1218,13 @@ def run_labeling_pipeline(
 				continue
 
 			# Get label value for balance check
-			if label_type == "sentiment":
+			if normalized_label_type == "sentiment":
 				label_val = result.get("label_sentiment")
-			elif label_type == "topic":
+			elif normalized_label_type == "topic":
 				label_val = result.get("label_topic")
-			elif label_type == "ner":
+			elif normalized_label_type == "ner":
 				label_val = result.get("label_ner")
-			elif label_type == "custom":
+			elif normalized_label_type == "custom":
 				label_val = result.get("label_sentiment")
 			else:
 				label_val = (
@@ -1291,12 +1301,15 @@ def balance_dataset(
 		return rows
 
 	# Determine label field
-	if label_type == "sentiment":
+	normalized_label_type = (label_type or "").lower().strip()
+	if normalized_label_type == "sentiment":
 		label_field = "label_sentiment"
-	elif label_type == "topic":
+	elif normalized_label_type == "topic":
 		label_field = "label_topic"
-	elif label_type == "ner":
+	elif normalized_label_type == "ner":
 		label_field = "label_ner"
+	elif normalized_label_type == "custom":
+		label_field = "label_sentiment"
 	else:
 		label_field = "label_sentiment"
 
