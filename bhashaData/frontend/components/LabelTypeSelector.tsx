@@ -1,11 +1,18 @@
 import type { LabelType } from "../lib/types";
 
+export type LabelTypeSelectorOption = {
+  value: LabelType;
+  title: string;
+  example: string;
+};
+
 type LabelTypeSelectorProps = {
   selected: LabelType;
   onChange: (value: LabelType) => void;
+  options?: LabelTypeSelectorOption[];
 };
 
-const options: Array<{ value: LabelType; title: string; example: string }> = [
+const defaultOptions: LabelTypeSelectorOption[] = [
   { value: "sentiment", title: "Sentiment", example: "positive / negative / neutral" },
   { value: "topic", title: "Topic Classification", example: "politics / sports / entertainment..." },
   { value: "ner", title: "NER", example: "PERSON / LOCATION / ORGANIZATION..." },
@@ -13,7 +20,7 @@ const options: Array<{ value: LabelType; title: string; example: string }> = [
   { value: "custom", title: "Custom Labels", example: "Define your own categories" },
 ];
 
-export default function LabelTypeSelector({ selected, onChange }: LabelTypeSelectorProps) {
+export default function LabelTypeSelector({ selected, onChange, options = defaultOptions }: LabelTypeSelectorProps) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {options.map((option) => (

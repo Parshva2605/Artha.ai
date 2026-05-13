@@ -4,6 +4,8 @@ import type {
   GenerateDatasetResponse,
   JobStatusResponse,
   QualityReport,
+  LabelUploadedRequest,
+  UploadPreviewResponse,
 } from "./types";
 import { getAuthHeaders } from "./auth";
 
@@ -115,6 +117,39 @@ export async function generateDataset(request: GenerateDatasetRequest): Promise<
   }
 
   return (await response.json()) as GenerateDatasetResponse;
+}
+
+export async function uploadCsv(file: File): Promise<UploadPreviewResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE}/api/upload-csv`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw await buildError(response);
+  }
+
+  return (await response.json()) as UploadPreviewResponse;
+}
+
+export async function labelUploadedCsv(payload: LabelUploadedRequest): Promise<{ job_id: string }> {
+  const response = await fetch(`${API_BASE}/api/label-uploaded-csv`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw await buildError(response);
+  }
+
+  return (await response.json()) as { job_id: string };
 }
 
 export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {

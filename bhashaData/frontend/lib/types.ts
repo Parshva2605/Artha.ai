@@ -27,6 +27,24 @@ export interface GenerateDatasetRequest {
   custom_labels?: string[];
 }
 
+export interface UploadPreviewResponse {
+  upload_id: string;
+  filename: string;
+  total_rows: number;
+  column_names: string[];
+  detected_text_column: string;
+  preview_rows: Record<string, string>[];
+}
+
+export interface LabelUploadedRequest {
+  upload_id: string;
+  text_column: string;
+  label_type: LabelType;
+  custom_labels?: string[];
+  export_formats: string[];
+  language: string;
+}
+
 export interface GenerateDatasetResponse {
   job_id: string;
   estimated_minutes: number;
