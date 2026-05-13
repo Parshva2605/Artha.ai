@@ -5,10 +5,12 @@ import os
 import shutil
 import logging
 import threading
+import io
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import File, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -22,6 +24,7 @@ from backend.api.models import (
     AuthResponse,
     UserResponse,
     JobResponse,
+    UploadPreviewResponse,
 )
 from backend.api.auth import (
     hash_password,
@@ -69,6 +72,18 @@ SUPPORTED_STATUSES = {
 }
 
 RUNNING_STATUSES = {"queued", "scraping", "cleaning", "labeling", "quality_check", "exporting"}
+
+
+def detect_text_column(df: pd.DataFrame) -> str:
+    best_col = None
+    best_avg = 0
+    for col in df.columns:
+        if df[col].dtype == object:
+            avg_len = df[col].astype(str).str.len().mean()
+            if avg_len > best_avg:
+                best_avg = avg_len
+                best_col = col
+    return best_col or str(df.columns[0])
 
 
 def _run_dataset_job_fallback(job_id: str, request_payload: dict) -> None:
@@ -263,6 +278,46 @@ async def generate_dataset(
         job_id=job_id,
         estimated_minutes=estimated_minutes,
         message="Dataset generation queued successfully",
+    )
+
+
+@router.post("/upload-csv", response_model=UploadPreviewResponse)
+async def upload_csv(file: UploadFile = File(...)) -> UploadPreviewResponse:
+    filename = file.filename or "uploaded.csv"
+    if not filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only CSV files are allowed.")
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File too large. Max 5MB.")
+
+    try:
+        df = pd.read_csv(io.StringIO(contents.decode("utf-8")))
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be valid UTF-8 CSV.")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse CSV: {exc}")
+
+    if len(df.columns) < 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CSV must contain at least 1 column.")
+    if len(df) < 2:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="CSV must contain at least 2 rows.")
+    if len(df) > 5000:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Max 5000 rows allowed.")
+
+    upload_id = str(uuid4())
+    uploads_dir = Path("/tmp/artha_uploads")
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    saved_path = uploads_dir / f"{upload_id}.csv"
+    saved_path.write_bytes(contents)
+
+    return UploadPreviewResponse(
+        upload_id=upload_id,
+        filename=filename,
+        total_rows=len(df),
+        column_names=list(df.columns),
+        detected_text_column=detect_text_column(df),
+        preview_rows=df.head(3).fillna("").to_dict(orient="records"),
     )
 
 

@@ -95,6 +95,14 @@ class GenerateDatasetResponse(BaseModel):
     estimated_minutes: int
     message: str
 
+class UploadPreviewResponse(BaseModel):
+    upload_id: str
+    filename: str
+    total_rows: int
+    column_names: list[str]
+    detected_text_column: str
+    preview_rows: list[dict]
+
 
 class HealthResponse(BaseModel):
     status: str
