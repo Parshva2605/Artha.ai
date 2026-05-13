@@ -104,6 +104,23 @@ class UploadPreviewResponse(BaseModel):
     preview_rows: list[dict]
 
 
+class LabelUploadedRequest(BaseModel):
+    upload_id: str
+    text_column: str
+    label_type: Literal["sentiment", "topic", "ner", "all", "custom"]
+    custom_labels: list[str] | None = None
+    export_formats: list[str] = Field(default_factory=lambda: ["csv"])
+    language: str = "en"
+
+    @field_validator("custom_labels", mode="after")
+    @classmethod
+    def validate_custom_labels(cls, v: list[str] | None, info) -> list[str] | None:
+        if info.data.get("label_type") == "custom":
+            if not v or len(v) < 2:
+                raise ValueError("Custom label type requires at least 2 labels")
+        return v
+
+
 class HealthResponse(BaseModel):
     status: str
     version: str

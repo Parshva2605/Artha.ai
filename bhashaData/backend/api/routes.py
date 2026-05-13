@@ -25,6 +25,7 @@ from backend.api.models import (
     UserResponse,
     JobResponse,
     UploadPreviewResponse,
+    LabelUploadedRequest,
 )
 from backend.api.auth import (
     hash_password,
@@ -45,7 +46,7 @@ from backend.database.models import (
     get_jobs_by_user,
 )
 from backend.workers.celery_app import celery_app
-from backend.workers.dataset_job import generate_dataset_task
+from backend.workers.dataset_job import generate_dataset_task, label_uploaded_dataset_task
 from backend.workers.status import get_job_status, delete_job_status
 
 
@@ -318,6 +319,46 @@ async def upload_csv(file: UploadFile = File(...)) -> UploadPreviewResponse:
         column_names=list(df.columns),
         detected_text_column=detect_text_column(df),
         preview_rows=df.head(3).fillna("").to_dict(orient="records"),
+    )
+
+
+@router.post("/label-uploaded-csv", response_model=GenerateDatasetResponse)
+async def label_uploaded_csv(request: LabelUploadedRequest, db=Depends(get_db)) -> GenerateDatasetResponse:
+    file_path = Path(f"/tmp/artha_uploads/{request.upload_id}.csv")
+    if not file_path.exists():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload not found. Please upload your CSV again.")
+
+    try:
+        df = pd.read_csv(file_path)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to load uploaded CSV: {exc}")
+
+    if request.text_column not in df.columns:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Column '{request.text_column}' not found in CSV.")
+
+    if request.label_type == "custom" and (not request.custom_labels or len(request.custom_labels) < 2):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Custom label type requires at least 2 custom labels.")
+
+    job_id = str(uuid4())
+    create_job(db, job_id, request.model_dump(), estimated_minutes=5, email=None, user_id=None)
+
+    label_uploaded_dataset_task.apply_async(
+        args=[
+            job_id,
+            request.upload_id,
+            request.text_column,
+            request.label_type,
+            request.custom_labels,
+            request.export_formats,
+            request.language,
+        ],
+        task_id=job_id,
+    )
+
+    return GenerateDatasetResponse(
+        job_id=job_id,
+        estimated_minutes=5,
+        message="Upload queued for labeling",
     )
 
 

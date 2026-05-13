@@ -8,7 +8,7 @@ redis_url = os.getenv(
     "redis://localhost:6379"
 )
 
-celery_app = Celery("artha_ai")
+celery_app = Celery("artha_ai", include=["backend.workers.dataset_job"])
 
 celery_app.conf.update(
     broker_url=redis_url,

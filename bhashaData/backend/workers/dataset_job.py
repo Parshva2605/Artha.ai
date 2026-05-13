@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -10,6 +11,8 @@ from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import Mock
 
+import pandas as pd
+
 from backend.config.languages import get_config_by_code
 from backend.config.settings import settings
 from backend.database.db import SessionLocal
@@ -17,6 +20,7 @@ from backend.database.models import get_job, update_job_status
 from backend.pipeline.cleaner import Deduplicator, run_cleaning_pipeline
 from backend.pipeline.exporter import run_export_pipeline
 from backend.pipeline.labeler import balance_dataset, run_labeling_pipeline
+from backend.pipeline.labeler import label_text
 from backend.pipeline.quality import generate_quality_report
 from backend.scrapers.orchestrator import run_scrapers_for_language
 from backend.workers.celery_app import celery_app
@@ -522,6 +526,95 @@ def generate_dataset_task(job_id: str, request: dict):
         raise
     finally:
         _JOB_START_TIMES.pop(job_id, None)
+        db.close()
+
+
+@celery_app.task(name="label_uploaded_dataset")
+def label_uploaded_dataset_task(
+    job_id: str,
+    upload_id: str,
+    text_column: str,
+    label_type: str,
+    custom_labels: list[str] | None,
+    export_formats: list[str],
+    language: str = "en",
+):
+    db = SessionLocal()
+    file_path = f"/tmp/artha_uploads/{upload_id}.csv"
+    per_language_status = {"uploaded": {"step": "queued", "rows_collected": 0, "rows_clean": 0, "rows_labeled": 0}}
+    try:
+        df = pd.read_csv(file_path)
+        total_rows = len(df)
+        language_config = get_config_by_code(language)
+
+        report_progress(job_id, "labeling", 5, f"Starting labeling of {total_rows} rows", per_language_status)
+        update_job_status(db, job_id, "labeling")
+
+        labels_out: list[str] = []
+        confidences_out: list[float] = []
+
+        for index, text in enumerate(df[text_column].astype(str).tolist()):
+            clean_text = text.strip()
+            if not clean_text or len(clean_text) < 3:
+                labels_out.append("skipped")
+                confidences_out.append(0.0)
+            else:
+                result = label_text(
+                    text=clean_text,
+                    label_type=label_type,
+                    language_name=str(language_config["name"]),
+                    custom_labels=custom_labels,
+                )
+                labels_out.append(getattr(result, "label", "unknown"))
+                confidences_out.append(round(float(getattr(result, "confidence", 0.0)), 4))
+
+            if total_rows > 0 and index % max(1, total_rows // 10) == 0:
+                pct = int((index / max(total_rows, 1)) * 80) + 10
+                report_progress(job_id, "labeling", pct, f"Labeled {index + 1}/{total_rows} rows", per_language_status)
+
+        df["label"] = labels_out
+        df["confidence"] = confidences_out
+        df["source"] = "uploaded"
+
+        report_progress(job_id, "exporting", 90, "Uploading labeled file", per_language_status)
+        update_job_status(db, job_id, "exporting")
+
+        tmp_out = f"/tmp/artha_labeled_{job_id}.csv"
+        df.to_csv(tmp_out, index=False)
+
+        from backend.pipeline.exporter import upload_to_supabase
+
+        url = upload_to_supabase(tmp_out, job_id, "labeled_data.csv")
+        exported_formats_dict = {"csv": url or tmp_out}
+
+        result_summary = {
+            "total_rows": total_rows,
+            "labeled_rows": len([label for label in labels_out if label != "skipped"]),
+            "skipped_rows": labels_out.count("skipped"),
+            "label_type": label_type,
+            "custom_labels": custom_labels,
+            "source": "uploaded",
+        }
+
+        update_job_status(
+            db,
+            job_id,
+            "complete",
+            result_summary=result_summary,
+            exported_formats=exported_formats_dict,
+        )
+        report_progress(job_id, "complete", 100, "Labeling complete", per_language_status)
+
+        for path in (file_path, tmp_out):
+            try:
+                os.remove(path)
+            except Exception:  # noqa: BLE001
+                pass
+    except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).error(f"label_uploaded_dataset_task failed: {exc}", exc_info=True)
+            update_job_status(db, job_id, "failed", error_message=str(exc))
+            report_progress(job_id, "failed", 0, str(exc), per_language_status)
+    finally:
         db.close()
 
 
