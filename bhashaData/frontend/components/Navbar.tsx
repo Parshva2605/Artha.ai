@@ -49,6 +49,12 @@ export default function Navbar() {
             <Link href="/#how-it-works" className="text-sm text-gray-300 hover:text-white">
               How it works
             </Link>
+            <Link href="/generate" className="text-sm text-gray-300 hover:text-white">
+              Generate
+            </Link>
+            <Link href="/upload-dataset" className="text-sm text-gray-300 hover:text-white">
+              Label My Data
+            </Link>
             <Link
               href="/custom-dataset"
               className="text-sm font-medium text-[#E8690A] border border-[#E8690A] rounded-full px-4 py-1.5 hover:bg-[#E8690A] hover:text-white transition-all"
@@ -104,6 +110,20 @@ export default function Navbar() {
               className="block text-gray-300 hover:text-white text-sm py-2 px-2"
             >
               How it works
+            </Link>
+            <Link
+              href="/generate"
+              onClick={() => setMenuOpen(false)}
+              className="block text-gray-300 hover:text-white text-sm py-2 px-2"
+            >
+              Generate
+            </Link>
+            <Link
+              href="/upload-dataset"
+              onClick={() => setMenuOpen(false)}
+              className="block text-gray-300 hover:text-white text-sm py-2 px-2"
+            >
+              Label My Data
             </Link>
             <Link
               href="/custom-dataset"

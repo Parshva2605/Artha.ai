@@ -129,6 +129,25 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+        <Card className="overflow-hidden border-orange-100 bg-[linear-gradient(135deg,#FFF8F1_0%,#FFFFFF_100%)] p-6 sm:p-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#E8690A]">Label Your Own Data</p>
+              <h2 className="mt-3 text-2xl font-bold tracking-tight text-[#0F172A] sm:text-3xl">
+                Already have text data? Upload any CSV and we label every row with AI in minutes.
+              </h2>
+              <p className="mt-4 text-base text-slate-600">
+                Pick the text column, choose your label type, and download a labeled file with confidence scores added.
+              </p>
+            </div>
+            <Button asChild className="w-full md:w-auto bg-[#E8690A] text-white hover:bg-[#d45e07]">
+              <Link href="/upload-dataset">Upload CSV</Link>
+            </Button>
+          </div>
+        </Card>
+      </section>
+
       <section className="py-16 px-4 bg-[#0F172A]">
         <div className="mx-auto max-w-5xl">
           <h2 className="mb-4 text-center text-2xl font-bold text-white sm:text-3xl">Double-Verified Quality You Can Trust</h2>
