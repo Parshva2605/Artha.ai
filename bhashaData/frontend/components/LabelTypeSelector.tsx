@@ -10,6 +10,7 @@ const options: Array<{ value: LabelType; title: string; example: string }> = [
   { value: "topic", title: "Topic Classification", example: "politics / sports / entertainment..." },
   { value: "ner", title: "NER", example: "PERSON / LOCATION / ORGANIZATION..." },
   { value: "all", title: "All Types", example: "all of the above" },
+  { value: "custom", title: "Custom Labels", example: "Define your own categories" },
 ];
 
 export default function LabelTypeSelector({ selected, onChange }: LabelTypeSelectorProps) {

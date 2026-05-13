@@ -2,7 +2,7 @@ export type Language = "en" | "hi" | "gu" | "mr" | "ta";
 
 export type Domain = "app_reviews" | "social_media" | "news" | "mixed";
 
-export type LabelType = "sentiment" | "topic" | "ner" | "all";
+export type LabelType = "sentiment" | "topic" | "ner" | "all" | "custom";
 
 export type ExportFormat = "csv" | "json" | "excel" | "parquet" | "huggingface";
 
@@ -24,6 +24,7 @@ export interface GenerateDatasetRequest {
   quantity_per_language: number;
   export_formats: ExportFormat[];
   email?: string;
+  custom_labels?: string[];
 }
 
 export interface GenerateDatasetResponse {

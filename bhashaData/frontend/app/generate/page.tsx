@@ -34,6 +34,7 @@ const labelOptions: Array<{ value: LabelType; title: string; example: string }> 
   { value: "topic", title: "Topic Classification", example: "politics / sports / entertainment..." },
   { value: "ner", title: "NER", example: "PERSON / LOCATION / ORGANIZATION..." },
   { value: "all", title: "All Types", example: "all of the above" },
+  { value: "custom", title: "Custom Labels", example: "Define your own categories" },
 ];
 
 const exportOptions: ExportFormat[] = ["csv", "json", "excel", "parquet", "huggingface"];
@@ -42,6 +43,7 @@ export default function GeneratePage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [labelInput, setLabelInput] = useState("");
   const [form, setForm] = useState<GenerateDatasetRequest>({
     languages: [],
     domain: "social_media",
@@ -49,6 +51,7 @@ export default function GeneratePage() {
     quantity_per_language: 100,
     export_formats: ["csv"],
     email: "",
+    custom_labels: [],
   });
 
   const estimatedMinutes = useMemo(
@@ -75,6 +78,9 @@ export default function GeneratePage() {
     }
     if (index === 2 && !labelOptions.some((option) => option.value === form.label_type)) {
       return "Please select a label type";
+    }
+    if (index === 2 && form.label_type === "custom" && (!form.custom_labels || form.custom_labels.length < 2)) {
+      return "Add at least 2 custom labels before proceeding";
     }
     if (index === 3) {
       if (form.quantity_per_language < 100 || form.quantity_per_language > 300) {
@@ -132,6 +138,7 @@ export default function GeneratePage() {
     const payload: GenerateDatasetRequest = {
       ...form,
       email: form.email?.trim() ? form.email.trim() : undefined,
+      custom_labels: form.label_type === "custom" ? form.custom_labels : undefined,
     };
     mutation.mutate(payload);
   };
@@ -226,6 +233,65 @@ export default function GeneratePage() {
                 </button>
               ))}
             </div>
+
+            {form.label_type === "custom" && (
+              <div className="mt-6 rounded-xl border border-slate-200 p-4">
+                <label className="block text-sm font-medium text-slate-900">Your Labels (2–10)</label>
+                <div className="mt-3 flex flex-wrap gap-2 mb-3">
+                  {form.custom_labels && form.custom_labels.map((label) => (
+                    <div
+                      key={label}
+                      className="inline-flex items-center gap-2 rounded-full bg-[#E8690A]/10 px-3 py-1 text-sm text-slate-900 border border-[#E8690A]/20"
+                    >
+                      <span>{label}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm((previous) => ({
+                            ...previous,
+                            custom_labels: (previous.custom_labels || []).filter((l) => l !== label),
+                          }));
+                        }}
+                        className="ml-1 font-semibold text-[#E8690A] hover:text-[#d45e07]"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={labelInput}
+                  onChange={(e) => setLabelInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      const trimmed = labelInput.trim().replace(",", "");
+                      if (
+                        trimmed &&
+                        (form.custom_labels || []).length < 10 &&
+                        !form.custom_labels?.includes(trimmed)
+                      ) {
+                        setForm((previous) => ({
+                          ...previous,
+                          custom_labels: [...(previous.custom_labels || []), trimmed],
+                        }));
+                        setLabelInput("");
+                      }
+                    }
+                  }}
+                  placeholder="Type a label and press Enter"
+                  disabled={(form.custom_labels || []).length >= 10}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm placeholder-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
+                />
+                <p className="mt-2 text-sm text-slate-600">
+                  {form.custom_labels?.length || 0}/10 labels
+                </p>
+                {(form.custom_labels || []).length < 2 && form.label_type === "custom" && (
+                  <p className="mt-2 text-sm text-red-600">Add at least 2 labels to proceed</p>
+                )}
+              </div>
+            )}
           </section>
         )}
 
@@ -295,6 +361,9 @@ export default function GeneratePage() {
               <p><span className="font-semibold">Languages:</span> {form.languages.map((item) => LANGUAGE_LABELS[item]).join(", ") || "-"}</p>
               <p><span className="font-semibold">Domain:</span> {form.domain}</p>
               <p><span className="font-semibold">Label type:</span> {form.label_type}</p>
+              {form.label_type === "custom" && form.custom_labels && form.custom_labels.length > 0 && (
+                <p><span className="font-semibold">Custom labels:</span> {form.custom_labels.join(", ")}</p>
+              )}
               <p><span className="font-semibold">Quantity per language:</span> {form.quantity_per_language}</p>
               <p><span className="font-semibold">Export formats:</span> {form.export_formats.map((item) => FORMAT_LABELS[item]).join(", ")}</p>
               <p><span className="font-semibold">Estimated time:</span> {estimatedMinutes} minutes</p>
