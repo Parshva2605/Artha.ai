@@ -185,3 +185,78 @@ def test_labeler_balance_enforcement() -> None:
     print(f"Is balanced: {b.is_balanced()}")
     assert b.is_balanced()
     print("TEST PASSED: balance enforcement works")
+
+
+def test_balance_sparse_minority_class():
+    """Neutral has only 13 rows. Should still deliver exactly 100."""
+    try:
+        from backend.pipeline.labeler import balance_dataset
+    except ModuleNotFoundError:
+        from pipeline.labeler import balance_dataset
+
+    rows = []
+    # 120 negative rows
+    for i in range(120):
+        rows.append({
+            "text": f"negative text {i}",
+            "label_sentiment": "negative",
+            "confidence": 0.85 + (i % 10) * 0.01
+        })
+    # 118 positive rows
+    for i in range(118):
+        rows.append({
+            "text": f"positive text {i}",
+            "label_sentiment": "positive",
+            "confidence": 0.84 + (i % 10) * 0.01
+        })
+    # Only 13 neutral rows
+    for i in range(13):
+        rows.append({
+            "text": f"neutral text {i}",
+            "label_sentiment": "neutral",
+            "confidence": 0.80 + (i % 5) * 0.01
+        })
+
+    result = balance_dataset(rows, target_count=100, label_type="sentiment")
+
+    assert len(result) == 100, f"Expected 100 rows, got {len(result)}"
+    label_counts = {}
+    for row in result:
+        label = row["label_sentiment"]
+        label_counts[label] = label_counts.get(label, 0) + 1
+    
+    assert label_counts.get("neutral", 0) == 13, f"Expected all 13 neutral rows, got {label_counts.get('neutral', 0)}"
+    assert label_counts.get("negative", 0) + label_counts.get("positive", 0) == 87, \
+        f"Expected 87 negative+positive, got {label_counts.get('negative', 0) + label_counts.get('positive', 0)}"
+    assert max(label_counts.values()) <= 50, f"Some label exceeds 50%: {label_counts}"
+    print(f"PASS: sparse minority test - label distribution = {label_counts}")
+
+
+def test_balance_equal_classes():
+    """All 3 classes have enough rows. Should split evenly."""
+    try:
+        from backend.pipeline.labeler import balance_dataset
+    except ModuleNotFoundError:
+        from pipeline.labeler import balance_dataset
+
+    rows = []
+    for label in ["positive", "negative", "neutral"]:
+        for i in range(80):
+            rows.append({
+                "text": f"{label} text {i}",
+                "label_sentiment": label,
+                "confidence": 0.85
+            })
+
+    result = balance_dataset(rows, target_count=90, label_type="sentiment")
+    
+    assert len(result) == 90, f"Expected 90 rows, got {len(result)}"
+    label_counts = {}
+    for row in result:
+        label = row["label_sentiment"]
+        label_counts[label] = label_counts.get(label, 0) + 1
+    
+    assert all(v == 30 for v in label_counts.values()), \
+        f"Expected 30 each, got {label_counts}"
+    print(f"PASS: equal classes test - label distribution = {label_counts}")
+
