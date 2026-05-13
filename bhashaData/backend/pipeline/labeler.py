@@ -339,6 +339,24 @@ def build_prompt(label_type: str, text: str, language_name: str) -> str:
 	return LABEL_PROMPTS[normalized_type].format(text=text, language_name=language_name)
 
 
+def build_custom_label_prompt(text: str, custom_labels: list[str], language: str) -> str:
+	labels_str = ", ".join(f'"{label}"' for label in custom_labels)
+	return f"""You are a text classification assistant.
+
+Classify the following {language} text into exactly one of these categories: {labels_str}
+
+Text: {text}
+
+Rules:
+- You MUST choose one of the provided categories only
+- Do not create new categories
+- Choose the closest match even if unsure
+- Return ONLY valid JSON, no explanation
+
+Return this exact JSON format:
+{{"label": "<chosen_label>", "confidence": <0.0 to 1.0>, "reason": "<one sentence why>"}}"""
+
+
 def _strip_code_fences(response_text: str) -> str:
 	cleaned = (response_text or "").strip()
 	if cleaned.startswith("```"):
@@ -392,6 +410,44 @@ def parse_llm_response(response_text: str, label_type: str) -> LabelResult | Non
 			llm_used="unknown",
 			needs_review=False,
 			label_type=normalized_type,
+			raw_response=raw,
+		)
+	except Exception:  # noqa: BLE001
+		return None
+
+
+def parse_custom_label_response(response_text: str, custom_labels: list[str]) -> LabelResult | None:
+	try:
+		raw = response_text or ""
+		payload_text = _strip_code_fences(raw)
+		payload = json.loads(payload_text)
+
+		if not isinstance(payload, dict):
+			return None
+
+		if "label" not in payload or "confidence" not in payload or "reason" not in payload:
+			return None
+
+		label = str(payload["label"]).strip()
+		reason = str(payload["reason"]).strip()
+		confidence = float(payload["confidence"])
+
+		if label not in custom_labels:
+			return None
+
+		if not (0.0 <= confidence <= 1.0):
+			return None
+
+		if not reason:
+			return None
+
+		return LabelResult(
+			label=label,
+			confidence=confidence,
+			reason=reason,
+			llm_used="unknown",
+			needs_review=False,
+			label_type="custom",
 			raw_response=raw,
 		)
 	except Exception:  # noqa: BLE001
@@ -683,7 +739,179 @@ def label_with_ollama(text: str, label_type: str, language_name: str) -> LabelRe
 		return None
 
 
-def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
+def label_with_groq_custom(text: str, prompt: str, custom_labels: list[str]) -> LabelResult | None:
+	import requests
+	from requests.exceptions import Timeout, ConnectionError
+
+	try:
+		if _is_groq_disabled():
+			return None
+
+		api_key = get_next_groq_key()
+		if not api_key:
+			return None
+		model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant").strip() or "llama-3.1-8b-instant"
+		timeout = 10
+
+		text_truncated = text[:500] if len(text) > 500 else text
+		prompt = build_custom_label_prompt(text_truncated, custom_labels, "text")
+
+		GROQ_RATE_LIMITER.wait()
+		time.sleep(2.0)
+		response = requests.post(
+			"https://api.groq.com/openai/v1/chat/completions",
+			headers={
+				"Authorization": f"Bearer {api_key}",
+				"Content-Type": "application/json",
+			},
+			json={
+				"model": model,
+				"messages": [{"role": "user", "content": prompt}],
+				"max_tokens": 200,
+				"temperature": 0.1,
+			},
+			timeout=timeout,
+		)
+
+		if response.status_code == 429:
+			return None
+		if response.status_code != 200:
+			return None
+
+		response.raise_for_status()
+		payload = response.json()
+		response_text = str(payload["choices"][0]["message"]["content"])
+		parsed = parse_custom_label_response(response_text, custom_labels)
+		if parsed is None:
+			return None
+		if parsed.confidence < 0.75:
+			return None
+
+		parsed.llm_used = "groq"
+		parsed.needs_review = False
+		return parsed
+	except Timeout:
+		return None
+	except ConnectionError:
+		return None
+	except Exception:  # noqa: BLE001
+		return None
+
+
+def label_with_openrouter_custom(text: str, prompt: str, custom_labels: list[str]) -> LabelResult | None:
+	import requests
+
+	try:
+		if _is_openrouter_disabled():
+			return None
+
+		with _OPENROUTER_SEMAPHORE:
+			if _is_openrouter_disabled():
+				return None
+
+			api_key = os.getenv("OPENROUTER_API_KEY")
+			model = os.getenv(
+				"OPENROUTER_MODEL",
+				"mistralai/mistral-7b-instruct:free"
+			)
+
+			if not api_key:
+				return None
+
+			OPENROUTER_RATE_LIMITER.wait()
+
+			response = requests.post(
+				"https://openrouter.ai/api/v1/chat/completions",
+				headers={
+					"Authorization": f"Bearer {api_key}",
+					"Content-Type": "application/json",
+					"HTTP-Referer": "https://arthaai.com",
+					"X-Title": "Artha AI",
+				},
+				json={
+					"model": model,
+					"messages": [{"role": "user", "content": prompt}],
+					"max_tokens": 200,
+					"temperature": 0.1,
+				},
+				timeout=15,
+			)
+
+			if response.status_code >= 400:
+				return None
+
+			response.raise_for_status()
+			payload = response.json()
+			response_text = str(payload["choices"][0]["message"]["content"])
+			parsed = parse_custom_label_response(response_text, custom_labels)
+			if parsed is None:
+				return None
+			if parsed.confidence < 0.75:
+				return None
+
+			parsed.llm_used = "openrouter"
+			parsed.needs_review = False
+			return parsed
+	except Exception:  # noqa: BLE001
+		return None
+
+
+def label_with_ollama_custom(text: str, prompt: str, custom_labels: list[str]) -> LabelResult | None:
+	import requests
+
+	try:
+		if _is_ollama_disabled():
+			return None
+
+		base_url = os.getenv("OLLAMA_ENDPOINT", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")).rstrip("/")
+		model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+		api_key = os.getenv("OLLAMA_API_KEY", "").strip()
+		timeout = min(15, int(os.getenv("OLLAMA_TIMEOUT", "15")))
+
+		OLLAMA_RATE_LIMITER.wait()
+
+		headers = {"Content-Type": "application/json"}
+		if api_key:
+			headers["Authorization"] = f"Bearer {api_key}"
+
+		response = requests.post(
+			f"{base_url}/chat/completions",
+			headers=headers,
+			json={
+				"model": model,
+				"messages": [{"role": "user", "content": prompt}],
+				"max_tokens": 200,
+				"temperature": 0.1,
+			},
+			timeout=timeout,
+		)
+
+		if response.status_code >= 400:
+			return None
+
+		response.raise_for_status()
+		data = response.json()
+		response_text = str(data["choices"][0]["message"]["content"])
+
+		parsed = parse_custom_label_response(response_text, custom_labels)
+		if parsed is None:
+			return None
+		if parsed.confidence < 0.75:
+			return None
+
+		parsed.llm_used = "ollama"
+		parsed.needs_review = False
+		return parsed
+	except requests.Timeout:
+		return None
+	except Exception:  # noqa: BLE001
+		return None
+
+
+def label_text(text: str, label_type: str, language_name: str, custom_labels: list[str] | None = None) -> LabelResult:
+	if custom_labels is not None:
+		return label_text_custom(text, custom_labels, language_name)
+	
 	try:
 		primary = get_next_llm()
 
@@ -729,6 +957,57 @@ def label_text(text: str, label_type: str, language_name: str) -> LabelResult:
 		llm_used="needs_review",
 		needs_review=True,
 		label_type=(label_type or "").lower(),
+		raw_response="",
+	)
+
+
+def label_text_custom(text: str, custom_labels: list[str], language_name: str) -> LabelResult:
+	try:
+		primary = get_next_llm()
+		prompt = build_custom_label_prompt(text, custom_labels, language_name)
+
+		if primary == "groq":
+			result = label_with_groq_custom(text, prompt, custom_labels)
+			if result is not None:
+				return result
+			result = label_with_openrouter_custom(text, prompt, custom_labels)
+			if result is not None:
+				return result
+			result = label_with_ollama_custom(text, prompt, custom_labels)
+			if result is not None:
+				return result
+
+		elif primary == "openrouter":
+			result = label_with_openrouter_custom(text, prompt, custom_labels)
+			if result is not None:
+				return result
+			result = label_with_groq_custom(text, prompt, custom_labels)
+			if result is not None:
+				return result
+			result = label_with_ollama_custom(text, prompt, custom_labels)
+			if result is not None:
+				return result
+
+		elif primary == "ollama":
+			result = label_with_ollama_custom(text, prompt, custom_labels)
+			if result is not None:
+				return result
+			result = label_with_groq_custom(text, prompt, custom_labels)
+			if result is not None:
+				return result
+			result = label_with_openrouter_custom(text, prompt, custom_labels)
+			if result is not None:
+				return result
+	except Exception:  # noqa: BLE001
+		pass
+
+	return LabelResult(
+		label="unknown",
+		confidence=0.0,
+		reason="All LLMs failed",
+		llm_used="needs_review",
+		needs_review=True,
+		label_type="custom",
 		raw_response="",
 	)
 
@@ -821,7 +1100,7 @@ def _rule_based_label(text: str, label_type: str) -> LabelResult | None:
 	return None
 
 
-def label_row(row: dict, label_type: str, language_config: dict) -> dict:
+def label_row(row: dict, label_type: str, language_config: dict, custom_labels: list[str] | None = None) -> dict:
 	updated_row = dict(row)
 	language_name = str(language_config["name"])
 	text = str(updated_row.get("text_clean", ""))
@@ -847,6 +1126,19 @@ def label_row(row: dict, label_type: str, language_config: dict) -> dict:
 		updated_row["needs_review"] = (
 			sentiment_result.needs_review or topic_result.needs_review or ner_result.needs_review
 		)
+		return updated_row
+
+	if normalized_label_type == "custom":
+		if not custom_labels:
+			raise ValueError("custom label_type requires custom_labels to be provided")
+		single_result = label_text(text, normalized_label_type, language_name, custom_labels=custom_labels)
+		updated_row["label_sentiment"] = single_result.label
+		updated_row["label_topic"] = None
+		updated_row["label_ner"] = None
+		updated_row["confidence"] = single_result.confidence
+		updated_row["confidence_reason"] = single_result.reason
+		updated_row["llm_used"] = single_result.llm_used
+		updated_row["needs_review"] = single_result.needs_review
 		return updated_row
 
 	single_result = label_text(text, normalized_label_type, language_name)
@@ -880,6 +1172,7 @@ def run_labeling_pipeline(
 	label_type: str,
 	language_config: dict,
 	progress_callback: Callable[[int, int], None] | None = None,
+	custom_labels: list[str] | None = None,
 ) -> LabelingResult:
 	labeled_rows = []
 	needs_review_rows = []
@@ -902,7 +1195,7 @@ def run_labeling_pipeline(
 		batch = rows[batch_start:batch_start + batch_size]
 
 		for row in batch:
-			result = label_row(row, label_type, language_config)
+			result = label_row(row, label_type, language_config, custom_labels=custom_labels)
 
 			if result.get("needs_review"):
 				needs_review_rows.append(result)
@@ -921,6 +1214,8 @@ def run_labeling_pipeline(
 				label_val = result.get("label_topic")
 			elif label_type == "ner":
 				label_val = result.get("label_ner")
+			elif label_type == "custom":
+				label_val = result.get("label_sentiment")
 			else:
 				label_val = (
 					result.get("label_sentiment") or
