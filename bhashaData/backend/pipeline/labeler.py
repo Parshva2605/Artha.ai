@@ -1183,6 +1183,13 @@ def run_labeling_pipeline(
 	progress_callback: Callable[[int, int], None] | None = None,
 	custom_labels: list[str] | None = None,
 ) -> LabelingResult:
+	valid_label_types = {"sentiment", "topic", "ner", "all", "custom"}
+	normalized_label_type = (label_type or "").strip().lower()
+	if normalized_label_type not in valid_label_types:
+		raise ValueError(f"Unknown label_type: {label_type}. Must be one of {valid_label_types}")
+	if normalized_label_type == "custom" and not custom_labels:
+		raise ValueError("custom_labels list is required when label_type is custom")
+
 	labeled_rows = []
 	needs_review_rows = []
 	rejected_low_confidence = 0
@@ -1198,7 +1205,6 @@ def run_labeling_pipeline(
 
 	# Label counter for tracking
 	label_counts: dict[str, int] = {}
-	normalized_label_type = (label_type or "").strip().lower()
 
 	batch_size = 5
 	for batch_start in range(0, total_input, batch_size):
