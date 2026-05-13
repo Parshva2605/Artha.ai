@@ -346,7 +346,7 @@ def generate_dataset_task(job_id: str, request: dict):
         def label_language(language_code: str):
             language_config = get_config_by_code(language_code)
             clean_result = clean_results[language_code]
-            oversample_target = int(quantity_per_language * 2.5)
+            oversample_target = int(quantity_per_language * 4)
             rows_for_labeling = getattr(clean_result, "clean_rows", [])[:oversample_target]
 
             with label_progress_lock:

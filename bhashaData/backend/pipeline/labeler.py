@@ -894,9 +894,8 @@ def run_labeling_pipeline(
 
 	total_input = len(rows)
 
-	# Label counter for balance enforcement
+	# Label counter for tracking
 	label_counts: dict[str, int] = {}
-	MAX_LABEL_PERCENT = 0.50  # strict 50% cap
 
 	batch_size = 5
 	for batch_start in range(0, total_input, batch_size):
@@ -933,20 +932,7 @@ def run_labeling_pipeline(
 				rejected_low_confidence += 1
 				continue
 
-			# BALANCE CHECK — hard cap at 50%
-			current_total = len(labeled_rows)
-			max_allowed = max(
-				3,
-				int((current_total + 1) * MAX_LABEL_PERCENT)
-			)
-			current_label_count = label_counts.get(label_val, 0)
-
-			if current_label_count >= max_allowed:
-				# This label is dominant — skip row
-				rejected_for_balance += 1
-				continue
-
-			# Accept this row
+			# Accept this row — let balance_dataset handle all balancing after labeling
 			label_counts[label_val] = (
 				label_counts.get(label_val, 0) + 1
 			)
@@ -973,11 +959,6 @@ def run_labeling_pipeline(
 				min(batch_start + batch_size, total_input),
 				total_input
 			)
-
-	# Final hard guard: if only a single label survived, avoid returning an imbalanced set.
-	if labeled_rows and len(label_counts) == 1:
-		rejected_for_balance += len(labeled_rows)
-		labeled_rows = []
 
 	return LabelingResult(
 		labeled_rows=labeled_rows,
