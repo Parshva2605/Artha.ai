@@ -497,6 +497,23 @@ def quality_report(job_id: str, db=Depends(get_db)):
     except Exception:
         exported_formats = {}
 
+    # Uploaded CSV jobs use a simplified result payload.
+    if report_payload.get("source") == "uploaded":
+        return JSONResponse(
+            content={
+                "job_id": job_id,
+                "source": "uploaded",
+                "total_rows": report_payload.get("total_rows", 0),
+                "labeled_rows": report_payload.get("labeled_rows", 0),
+                "skipped_rows": report_payload.get("skipped_rows", 0),
+                "label_type": report_payload.get("label_type", "unknown"),
+                "custom_labels": report_payload.get("custom_labels"),
+                "overall_quality_score": None,
+                "is_uploaded_job": True,
+                "export_formats": list(exported_formats.keys()),
+            }
+        )
+
     report_payload["export_formats"] = list(exported_formats.keys())
     return JSONResponse(content=report_payload)
 
