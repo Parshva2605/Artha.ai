@@ -16,8 +16,6 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Artha AI", version="1.0.0")
 
-os.makedirs("/tmp/artha_uploads", exist_ok=True)
-
 # Configure CORS for development and production
 allow_origins = [
     "http://localhost:3000",
