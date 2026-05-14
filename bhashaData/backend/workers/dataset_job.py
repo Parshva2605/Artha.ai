@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import Mock
+import io
 
 import pandas as pd
 
@@ -24,7 +25,7 @@ from backend.pipeline.labeler import label_text
 from backend.pipeline.quality import generate_quality_report
 from backend.scrapers.orchestrator import run_scrapers_for_language
 from backend.workers.celery_app import celery_app
-from backend.workers.status import get_job_status, set_job_status, update_job_progress
+from backend.workers.status import get_job_status, set_job_status, update_job_progress, get_redis_client
 
 
 logger = logging.getLogger(__name__)
@@ -540,10 +541,20 @@ def label_uploaded_dataset_task(
     language: str = "en",
 ):
     db = SessionLocal()
-    file_path = f"/tmp/artha_uploads/{upload_id}.csv"
+    redis_client = get_redis_client()
+    redis_key = f"upload:{upload_id}:csv"
     per_language_status = {"uploaded": {"step": "queued", "rows_collected": 0, "rows_clean": 0, "rows_labeled": 0}}
     try:
-        df = pd.read_csv(file_path)
+        # Read CSV from Redis instead of /tmp
+        csv_content = redis_client.get(redis_key)
+        if not csv_content:
+            raise ValueError(
+                "Uploaded CSV not found in cache. "
+                "It may have expired (1 hour limit). Please upload again."
+            )
+        if isinstance(csv_content, bytes):
+            csv_content = csv_content.decode("utf-8")
+        df = pd.read_csv(io.StringIO(csv_content))
         total_rows = len(df)
         language_config = get_config_by_code(language)
 
@@ -605,11 +616,17 @@ def label_uploaded_dataset_task(
         )
         report_progress(job_id, "complete", 100, "Labeling complete", per_language_status)
 
-        for path in (file_path, tmp_out):
-            try:
-                os.remove(path)
-            except Exception:  # noqa: BLE001
-                pass
+        # Clean up temp output file
+        try:
+            os.remove(tmp_out)
+        except Exception:  # noqa: BLE001
+            pass
+        
+        # Delete from Redis after successful processing
+        try:
+            redis_client.delete(redis_key)
+        except Exception:  # noqa: BLE001
+            pass
     except Exception as exc:  # noqa: BLE001
             logging.getLogger(__name__).error(f"label_uploaded_dataset_task failed: {exc}", exc_info=True)
             update_job_status(db, job_id, "failed", error_message=str(exc))

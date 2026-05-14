@@ -48,6 +48,7 @@ from backend.database.models import (
     get_jobs_by_user,
 )
 from backend.workers.celery_app import celery_app
+from backend.workers.status import get_redis_client
 from backend.workers.dataset_job import generate_dataset_task, label_uploaded_dataset_task
 from backend.workers.status import get_job_status, delete_job_status
 
@@ -309,10 +310,11 @@ async def upload_csv(file: UploadFile = File(...)) -> UploadPreviewResponse:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Max 5000 rows allowed.")
 
     upload_id = str(uuid4())
-    uploads_dir = Path("/tmp/artha_uploads")
-    uploads_dir.mkdir(parents=True, exist_ok=True)
-    saved_path = uploads_dir / f"{upload_id}.csv"
-    saved_path.write_bytes(contents)
+    
+    # Save raw CSV content to Redis with 1 hour TTL
+    redis_client = get_redis_client()
+    redis_key = f"upload:{upload_id}:csv"
+    redis_client.setex(redis_key, 3600, contents.decode("utf-8"))
 
     return UploadPreviewResponse(
         upload_id=upload_id,
@@ -326,17 +328,29 @@ async def upload_csv(file: UploadFile = File(...)) -> UploadPreviewResponse:
 
 @router.post("/label-uploaded-csv", response_model=GenerateDatasetResponse)
 async def label_uploaded_csv(request: LabelUploadedRequest, db=Depends(get_db)) -> GenerateDatasetResponse:
-    file_path = Path(f"/tmp/artha_uploads/{request.upload_id}.csv")
-    if not file_path.exists():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Upload not found. Please upload your CSV again.")
-
+    redis_client = get_redis_client()
+    redis_key = f"upload:{request.upload_id}:csv"
+    csv_content = redis_client.get(redis_key)
+    if not csv_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Upload not found or expired. Please upload your CSV again."
+        )
+    
+    # Parse to validate text_column exists
     try:
-        df = pd.read_csv(file_path)
+        df_check = pd.read_csv(io.StringIO(csv_content))
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to load uploaded CSV: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to parse uploaded CSV: {exc}"
+        )
 
-    if request.text_column not in df.columns:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Column '{request.text_column}' not found in CSV.")
+    if request.text_column not in df_check.columns:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Column '{request.text_column}' not found in CSV."
+        )
 
     if request.label_type == "custom" and (not request.custom_labels or len(request.custom_labels) < 2):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Custom label type requires at least 2 custom labels.")

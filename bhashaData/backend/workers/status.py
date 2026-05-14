@@ -25,6 +25,11 @@ def _get_redis_client():
 	return redis_client
 
 
+def get_redis_client():
+	"""Public function to get Redis client for storing/retrieving data."""
+	return redis_client
+
+
 def set_job_status(job_id, status_dict) -> None:
 	client = _get_redis_client()
 	if client is None:
