@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { ApiError, getDownloadUrl, getQualityReport } from "../../../lib/api";
+import { ApiError, getDownloadUrl } from "../../../lib/api";
 import type { ExportFormat, QualityReport as QualityReportType } from "../../../lib/types";
 import { Button } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
@@ -12,6 +12,7 @@ import DownloadCard from "../../../components/DownloadCard";
 import { LANGUAGE_LABELS } from "../../../lib/types";
 
 const defaultExportFormats: ExportFormat[] = ["csv"];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type DownloadReport = Partial<QualityReportType> & {
   source?: string;
@@ -30,13 +31,27 @@ function totalDistribution(labelDistribution: Record<string, number> | undefined
   return Object.values(labelDistribution).reduce((sum, value) => sum + value, 0);
 }
 
+async function getRawQualityReport(jobId: string): Promise<DownloadReport> {
+  const response = await fetch(`${API_BASE}/api/quality-report/${jobId}`);
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const payload = (await response.json()) as { detail?: string; message?: string };
+      message = payload.detail || payload.message || message;
+    } catch {
+    }
+    throw new ApiError(response.status, message);
+  }
+  return (await response.json()) as DownloadReport;
+}
+
 export default function DownloadPage() {
   const params = useParams<{ id: string }>();
   const jobId = params.id;
 
   const reportQuery = useQuery({
     queryKey: ["quality-report", jobId],
-    queryFn: () => getQualityReport(jobId),
+    queryFn: () => getRawQualityReport(jobId),
     enabled: Boolean(jobId),
     retry: (failureCount, error) => error instanceof ApiError && error.status === 404 && failureCount < 10,
     retryDelay: 2000,
