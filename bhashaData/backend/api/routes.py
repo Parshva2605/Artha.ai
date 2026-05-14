@@ -9,6 +9,8 @@ import io
 from pathlib import Path
 from uuid import uuid4
 
+import pandas as pd
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import File, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
