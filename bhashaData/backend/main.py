@@ -19,12 +19,19 @@ app = FastAPI(title="Artha AI", version="1.0.0")
 # Configure CORS for development and production
 allow_origins = [
     "http://localhost:3000",
+    "http://127.0.0.1:3000",
     "http://localhost:3001",
 	"https://artha-ai.dev",
 	"https://www.artha-ai.dev",
 	os.getenv("FRONTEND_URL", ""),
 	"https://*.vercel.app",
 ]
+
+# Also allow ngrok URLs for local testing with Vercel
+# ngrok URLs are added dynamically via environment variable
+ngrok_url = os.environ.get("NGROK_URL", "")
+if ngrok_url:
+	allow_origins.append(ngrok_url)
 
 # Filter out empty strings
 allow_origins = [origin for origin in allow_origins if origin]
