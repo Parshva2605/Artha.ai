@@ -13,6 +13,19 @@
 
 ---
 
+## 🔧 Service Status
+
+> **Note:** The backend API is currently paused due to infrastructure maintenance. The platform will be fully restored shortly.
+>
+> **Frontend:** ✅ Live at artha-ai.dev  
+> **Backend API:** ⏸️ Temporarily paused  
+> **Database:** ✅ All data safe on Supabase  
+>
+> For dataset requests during this period, contact: arthaai.dev@gmail.com  
+> We will process your request manually.
+
+---
+
 ## What is Artha AI?
 
 Artha AI automatically generates labeled AI training datasets in Indian languages. Select your language, domain, and label type. Get a production-ready labeled dataset in 20 minutes at ₹499 per 1000 rows.
