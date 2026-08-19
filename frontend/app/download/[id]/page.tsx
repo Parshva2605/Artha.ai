@@ -248,26 +248,6 @@ export default function DownloadPage() {
         </div>
       </Card>
 
-      {(report?.scraped_rows !== undefined || report?.synthetic_rows !== undefined) && (
-        <Card className="mt-6 p-6">
-          <p className="text-lg font-semibold text-slate-900">Dataset Composition</p>
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-lg border p-3">
-              <p className="text-sm text-slate-600">Scraped rows</p>
-              <p className="text-xl font-semibold">{report?.scraped_rows ?? 0}</p>
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-sm text-slate-600">Synthetic rows</p>
-              <p className="text-xl font-semibold">{report?.synthetic_rows ?? 0}</p>
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-sm text-slate-600">Total rows</p>
-              <p className="text-xl font-semibold">{(report?.scraped_rows ?? 0) + (report?.synthetic_rows ?? 0)}</p>
-            </div>
-          </div>
-        </Card>
-      )}
-
       <Button asChild className="mt-6 bg-[#E8690A] text-white hover:bg-[#d45e07]">
         <Link href="/generate">Generate New Dataset</Link>
       </Button>
