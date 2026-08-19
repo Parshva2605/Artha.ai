@@ -1,167 +1,353 @@
+![Status](https://img.shields.io/badge/Status-Live-brightgreen)
+![Quality](https://img.shields.io/badge/Quality-98.8%25-brightgreen)
+![Languages](https://img.shields.io/badge/Languages-5_Indian-orange)
+![License](https://img.shields.io/badge/License-MIT-blue)
+
 # Artha AI
 
-> Generate production-ready labeled datasets for Indian languages in minutes
+### "Give Meaning to Your Data"
 
-**Artha AI** is an AI-powered platform that generates high-quality labeled datasets in **Hindi, Gujarati, Tamil, Marathi, Bengali, Telugu, Kannada** and more. Perfect for training sentiment analysis, intent classification, and toxicity detection models.
+**India's First On-Demand Indian Language Dataset Generation Platform**
 
-[![Live Demo](https://img.shields.io/badge/Live-Demo-blue)](https://artha-ai.dev)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Next.js 14](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
+[🚀 Try Free](https://artha-ai.dev) | [📖 API Docs](https://artha-ai.dev/docs) | [📧 Contact](mailto:arthaai.dev@gmail.com)
 
 ---
 
-## 🎯 Features
+## What is Artha AI?
 
-✨ **8+ Indian Languages** - Hindi, Gujarati, Tamil, Marathi, Bengali, Telugu, Kannada, English
+Artha AI automatically generates labeled AI training datasets in Indian languages. Select your language, domain, and label type. Get a production-ready labeled dataset in 20 minutes at ₹499 per 1000 rows.
 
-🤖 **AI-Powered Labeling** - Automatic sentiment, intent, and toxicity detection
-
-📊 **Multiple Export Formats** - CSV, JSON, Excel, Parquet, HuggingFace
-
-⚡ **Fast Generation** - Get 100+ labeled rows in 2-5 minutes
-
-✅ **Quality Assured** - Built-in quality scoring and balance checks
-
-🔒 **Secure & Private** - Your data stays private and secure
+No manual labeling. No data collection hassles. Just upload a request and download your dataset.
 
 ---
 
-## 🚀 How It Works
+## Key Metrics
 
-1. **Select Languages** → Choose from 8+ Indian languages
-2. **Choose Label Type** → Sentiment, Intent, or Toxicity
-3. **Set Quantity** → 10 to 500 rows per language
-4. **Generate** → AI processes your request
-5. **Download** → Get your labeled dataset in multiple formats
-
----
-
-## 💡 Use Cases
-
-- **Sentiment Analysis** - Train models for e-commerce reviews, social media monitoring
-- **Intent Classification** - Build chatbots and virtual assistants
-- **Toxicity Detection** - Content moderation for Indian language platforms
-- **Research & Academia** - Dataset generation for NLP research
-- **Startup MVPs** - Quick prototyping for AI products
+| Metric | Value |
+|--------|-------|
+| Average Quality Score | 98.8% |
+| Confidence Threshold | 0.80 minimum |
+| Oversample Factor | 4x |
+| Delivery Time | ~20 minutes |
+| Languages Supported | 5 Indian languages |
+| Export Formats | 5 formats |
+| Label Types | 4 + custom |
 
 ---
 
-## 🎥 Demo
+## Features
 
-Visit [artha-ai.dev](https://artha-ai.dev) to try it now!
+🌐 **5 Indian Languages**  
+Hindi, Gujarati, Marathi, Tamil, English
 
-*(Add screenshots or demo video here)*
+🏷️ **4 Label Types**  
+Sentiment, Topic, NER, Custom labels
+
+📤 **5 Export Formats**  
+CSV, JSON, Excel, Parquet, HuggingFace
+
+⚡ **Automated Pipeline**  
+Scrape → Clean → Label → Balance → Export
+
+🎯 **Custom Labels**  
+Define your own categories — complaint, refund, delivery, urgent — any labels
+
+📁 **Upload Own CSV**  
+Bring your existing data, we label it
+
+✅ **Quality Guarantee**  
+98.8% average confidence score
+
+🔐 **User Accounts**  
+Job history, re-download anytime
+
+📱 **Mobile Responsive**  
+Works on all devices
 
 ---
 
-## 📊 Example Output
+## How It Works
 
-```csv
-text_clean,label_sentiment,confidence,language
-"यह बहुत अच्छा है",positive,0.92,hi
-"આ સરસ છે",positive,0.89,gu
-"यह ठीक नहीं है",negative,0.87,hi
+1️⃣ Select language, domain, label type, quantity  
+↓  
+2️⃣ AI scrapes YouTube, Google Play, News  
+↓  
+3️⃣ Cleans and filters by language  
+↓  
+4️⃣ Groq LLM labels every row  
+↓  
+5️⃣ Balance enforced — exact row count delivered  
+↓  
+6️⃣ Quality checked — 98.8% average score  
+↓  
+7️⃣ Download CSV, JSON, Excel, Parquet, HuggingFace
+
+---
+
+## Supported Languages
+
+| Language | Script | Status |
+|----------|--------|--------|
+| Hindi | Devanagari | ✅ Live |
+| Gujarati | Gujarati | ✅ Live |
+| Marathi | Devanagari | ✅ Live |
+| Tamil | Tamil | ✅ Live |
+| English | Latin | ✅ Live (benchmark) |
+
+---
+
+## Label Types
+
+| Label Type | Categories | Use Case |
+|------------|------------|----------|
+| Sentiment | positive, negative, neutral | Product reviews, feedback |
+| Topic | politics, sports, tech, health, finance, education, entertainment, food, other | News classification |
+| NER | PERSON, ORG, LOCATION, DATE, CURRENCY, OTHER | Entity extraction |
+| Custom | You define any labels | Any industry specific use |
+
+---
+
+## API Reference
+
+**Base URL:** `https://artha-ai-backend-production.up.railway.app`
+
+### Generate Dataset
+
+```http
+POST /api/generate-dataset
 ```
 
-**22 columns per row** including:
-- Original & cleaned text
-- Sentiment/Intent/Toxicity labels
-- Confidence scores
-- Language detection
-- Source metadata
-- Quality indicators
-
----
-
-## 🏗️ Tech Stack
-
-**Frontend:** Next.js, React, TypeScript, TailwindCSS
-
-**Backend:** FastAPI, Celery, PostgreSQL, Redis
-
-**AI/ML:** Groq, OpenRouter, Anthropic Claude, OpenAI
-
-**Infrastructure:** Vercel, Railway, Supabase, Upstash
-
----
-
-## 🛠️ For Developers
-
-Want to contribute or run locally?
-
-### Quick Start
-
-```bash
-# Clone repository
-git clone https://github.com/Parshva2605/Artha.ai.git
-cd Artha.ai
-
-# Install dependencies
-cd backend && pip install -r requirements.txt
-cd ../frontend && npm install
-
-# Configure environment
-cp .env.example .env
-# Add your API keys
-
-# Run with Docker
-docker compose up
+**Request body:**
+```json
+{
+  "languages": ["hi", "gu"],
+  "domain": "ecommerce",
+  "label_type": "sentiment",
+  "quantity_per_language": 1000,
+  "export_formats": ["csv", "json"],
+  "custom_labels": null
+}
 ```
 
-See [LOCAL_SETUP.md](LOCAL_SETUP.md) for detailed instructions.
-
-### API Access
-
-```python
-import requests
-
-response = requests.post('https://api.artha-ai.dev/api/generate-dataset', 
-    json={
-        "languages": ["hi", "gu"],
-        "quantity_per_language": 100,
-        "label_type": "sentiment",
-        "export_formats": ["csv", "json"]
-    }
-)
+**Response:**
+```json
+{
+  "job_id": "uuid",
+  "estimated_minutes": 20,
+  "message": "Dataset generation queued"
+}
 ```
 
-API documentation: [api.artha-ai.dev/docs](https://api.artha-ai.dev/docs)
+### Check Job Status
+
+```http
+GET /api/job-status/{job_id}
+```
+
+**Response:**
+```json
+{
+  "job_id": "uuid",
+  "status": "labeling",
+  "progress_percent": 65,
+  "current_step": "Labeled 650/1000 rows"
+}
+```
+
+### Download Dataset
+
+```http
+GET /api/download/{job_id}/{format}
+```
+
+Returns: Redirect to Supabase Storage URL
+
+### Upload and Label CSV
+
+```http
+POST /api/upload-csv
+```
+
+Body: `multipart/form-data` with CSV file  
+Returns: `upload_id`, detected columns, preview
+
+```http
+POST /api/label-uploaded-csv
+```
+
+Body: `upload_id`, `text_column`, `label_type`  
+Returns: `job_id` for tracking
+
+### Health Check
+
+```http
+GET /api/health
+```
+
+Returns: `{ "status": "ok" }`
 
 ---
 
-## 🤝 Contributing
+## Tech Stack
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md).
+### Frontend
+- Next.js 14
+- TypeScript
+- TailwindCSS
+- shadcn/ui
+- TanStack React Query
+- Deployed on Vercel
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
+### Backend
+- Python 3.11
+- FastAPI
+- Celery + Redis
+- SQLAlchemy + PostgreSQL
+- Supabase Storage
+- Deployed on Railway
+
+### AI and Data
+- Groq LLM (llama-3.1-8b-instant)
+- OpenRouter (fallback)
+- langdetect
+- pandas, pyarrow
+- yt-dlp, google-play-scraper
+
+### Infrastructure
+- Supabase (Database + Storage)
+- Upstash Redis
+- Railway (Backend + Worker)
+- Vercel (Frontend)
 
 ---
 
-## 📝 License
+## Architecture
 
-MIT License - see [LICENSE](LICENSE) file for details.
+```
+┌─────────────────────────────────────┐
+│          artha-ai.dev               │
+│         (Next.js on Vercel)         │
+└──────────────┬──────────────────────┘
+               │ REST API
+               ▼
+┌─────────────────────────────────────┐
+│      FastAPI Backend                │
+│      (Railway)                      │
+└──────┬───────────────┬──────────────┘
+       │               │
+       ▼               ▼
+┌──────────────┐ ┌─────────────────┐
+│ Supabase DB  │ │  Redis Queue    │
+│ (PostgreSQL) │ │  (Upstash)      │
+└──────────────┘ └────────┬────────┘
+                          │
+                          ▼
+                ┌─────────────────────┐
+                │   Celery Worker     │
+                │   (Railway)         │
+                │                     │
+                │ Scrape→Clean→Label  │
+                │ Balance→Quality     │
+                │ Export→Upload       │
+                └──────────┬──────────┘
+                           │
+                           ▼
+                ┌─────────────────────┐
+                │  Supabase Storage   │
+                │  datasets/{job_id}/ │
+                │  data.csv           │
+                │  data.json          │
+                │  data.xlsx          │
+                └─────────────────────┘
+```
 
 ---
 
-## 📧 Support
+## Pricing
 
-- **Email:** support@artha-ai.dev
-- **GitHub Issues:** [Report a bug](https://github.com/Parshva2605/Artha.ai/issues)
-- **Documentation:** [docs.artha-ai.dev](https://docs.artha-ai.dev)
+| Plan | Price | Delivery | Details |
+|------|-------|----------|---------|
+| Free | ₹0 | 20 min | 100 rows, one time per account |
+| Automated | ₹499/1000 rows | ~20 min | Scrapable domains |
+| Custom | ₹999/1000 rows | 2-5 days | Medical, legal, agriculture |
+| Pro | ₹1,999/month | ~20 min | Unlimited automated |
+| Enterprise | Custom quote | Custom | Large scale + SLA |
+
+Volume discounts available for 5000+ rows.
 
 ---
 
-## 🙏 Acknowledgments
+## Use Cases
 
-Built for the Indian AI ecosystem to support low-resource language development.
+### 🤖 Train a Hindi sentiment classifier
+→ Generate 5000 Hindi product review rows  
+→ Labeled positive/negative/neutral  
+→ Download as HuggingFace dataset  
+→ Train your model directly
+
+### 🏷️ Label your customer support tickets
+→ Upload CSV with ticket text column  
+→ Define labels: complaint, refund, escalation, resolved  
+→ Download fully labeled CSV  
+→ Automate your support routing
+
+### 📊 Build a Gujarati topic classifier
+→ Generate 2000 Gujarati news rows  
+→ Labeled across 9 topic categories  
+→ Export as CSV or JSON  
+→ Ready for fine-tuning
 
 ---
 
-**[Try Artha AI Now →](https://artha-ai.dev)**
+## Quality System
 
-Made with ❤️ for Indian Language AI
+Every dataset goes through 6 quality gates:
 
+1. **Language Detection** — only correct language rows pass
+2. **Noise Filtering** — URLs, spam, very short text removed
+3. **Deduplication** — exact duplicates removed
+4. **Confidence Threshold** — rows below 0.80 confidence rejected
+5. **Balance Enforcement** — no label exceeds 50% of dataset
+6. **Oversample** — 4x rows labeled to deliver only the best
+
+**Result:** 98.8% average confidence score
+
+---
+
+## Roadmap
+
+- ✅ 5 Indian languages
+- ✅ Sentiment, Topic, NER labeling
+- ✅ Custom label support
+- ✅ Upload own CSV for labeling
+- ✅ 5 export formats
+- ✅ User authentication
+- ⬜ Synthetic data generation
+- ⬜ 10 more Indian languages
+- ⬜ Audio dataset support
+- ⬜ Image dataset support
+- ⬜ API key based access
+- ⬜ Webhook notifications
+
+---
+
+## Contact and Links
+
+🌐 **Website:** https://artha-ai.dev  
+📧 **Email:** arthaai.dev@gmail.com  
+👨‍💻 **GitHub:** github.com/Parshva2605/Artha.ai  
+🐦 **Founded by:** Parshva Shah, Anand, Gujarat
+
+For enterprise inquiries or custom dataset requests contact arthaai.dev@gmail.com
+
+---
+
+## Footer
+
+**Built in Gujarat, India**
+
+© 2025 Artha AI. All rights reserved.
+
+Applied to: iCreate Spark-up Fund | MeitY Startup Hub
+
+**"Give Meaning to Your Data"**
