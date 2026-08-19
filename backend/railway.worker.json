@@ -1,0 +1,9 @@
+{
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "startCommand": "celery -A backend.workers.celery_app.celery_app worker -l info --pool=solo -Q dataset_generation,celery",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
